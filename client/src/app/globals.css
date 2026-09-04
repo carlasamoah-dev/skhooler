@@ -1,20 +1,19 @@
 @import "tailwindcss";
 
 @theme {
-  --color-skool-bg: #f9f9fb;
-  --color-skool-blue: #2563eb;
-  --color-skool-yellow: #fcd34d;
-  --color-skool-yellow-hover: #fbbf24;
+  --color-brand-primary: #18181b; /* zinc-900 */
+  --color-brand-hover: #27272a; /* zinc-800 */
+  --color-brand-accent: #3b82f6; /* Subtle blue for distinct active states */
 }
 
 :root {
-  --background: #f9f9fb;
-  --foreground: #111827;
+  --background: #fafafa;
+  --foreground: #18181b;
 }
 
 body {
-  background: var(--background);
   color: var(--foreground);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--background);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   @apply antialiased;
 }
