@@ -7,6 +7,8 @@ import { logger } from '../utils/logger.js';
 import { verifyAccessToken } from '../utils/jwt.js';
 import { redis } from './redis.js';
 
+let ioInstance = null;
+
 /**
  * Setup Socket.io on the provided HTTP server.
  * @param {import('http').Server} httpServer - The HTTP server instance.
@@ -39,6 +41,9 @@ export function setupSocket(httpServer) {
     const userId = socket.user.id;
     logger.info({ userId, socketId: socket.id }, 'User connected via Socket.io');
     
+    // Join the socket to user-specific room
+    socket.join(`user:${userId}`);
+    
     // Add user to online_users set
     redis.sadd('online_users', userId).catch(err => {
       logger.error({ err, userId }, 'Failed to add user to online_users');
@@ -59,6 +64,14 @@ export function setupSocket(httpServer) {
       }
       next();
     });
+    
+    socket.on('join:group', (groupId) => {
+      socket.join(`group:${groupId}`);
+    });
+
+    socket.on('leave:group', (groupId) => {
+      socket.leave(`group:${groupId}`);
+    });
 
     socket.on('disconnect', () => {
       clearInterval(rateLimitInterval);
@@ -69,5 +82,14 @@ export function setupSocket(httpServer) {
     });
   });
 
+  ioInstance = io;
   return io;
+}
+
+/**
+ * Get the initialized Socket.io instance.
+ * @returns {Server|null} The Socket.io instance or null if not initialized.
+ */
+export function getIO() {
+  return ioInstance;
 }

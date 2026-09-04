@@ -1,5 +1,7 @@
 import { Worker } from 'bullmq';
 import { processEmailJob } from './email.job.js';
+import { processBroadcastJob } from './broadcast.job.js';
+import { processWebhookJob } from './webhook.job.js';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 
@@ -24,6 +26,22 @@ export function startWorkers() {
 
   emailWorker.on('completed', (job) => logger.info({ jobId: job.id }, 'Email job completed'));
   emailWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err }, 'Email job failed'));
+
+  const broadcastWorker = new Worker('broadcast', processBroadcastJob, {
+    connection: redisConnection,
+    concurrency: 1, // processes one broadcast at a time
+  });
+
+  broadcastWorker.on('completed', (job) => logger.info({ jobId: job.id }, 'Broadcast job completed'));
+  broadcastWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err }, 'Broadcast job failed'));
+
+  const webhookWorker = new Worker('webhook', processWebhookJob, {
+    connection: redisConnection,
+    concurrency: 5,
+  });
+
+  webhookWorker.on('completed', (job) => logger.info({ jobId: job.id }, 'Webhook job completed'));
+  webhookWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err }, 'Webhook job failed'));
 
   logger.info('Background workers started');
 }

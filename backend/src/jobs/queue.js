@@ -30,3 +30,23 @@ export const maintenanceQueue = new Queue('maintenance', {
     removeOnComplete: { count: 50 },
   },
 });
+
+export const broadcastQueue = new Queue('broadcast', {
+  connection: redisConnection,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 1000 },
+    removeOnComplete: { count: 100 },
+    removeOnFail: { count: 500 },
+  },
+});
+
+export const webhookQueue = new Queue('webhook', {
+  connection: redisConnection,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 2000 },
+    removeOnComplete: { count: 100 },
+    removeOnFail: { count: 500 },
+  },
+});

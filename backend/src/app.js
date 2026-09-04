@@ -8,6 +8,15 @@ import { globalLimiter } from './middleware/rateLimiter.js'
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js'
 import authRoutes from './modules/auth/auth.routes.js'
 import healthRoutes from './modules/health/health.routes.js'
+import groupRoutes from './modules/group/group.routes.js'
+import postRoutes from './modules/post/post.routes.js'
+import courseRoutes from './modules/course/course.routes.js'
+import eventRoutes from './modules/event/event.routes.js'
+import notificationRoutes from './modules/notification/notification.routes.js'
+import billingRoutes from './modules/billing/billing.routes.js'
+import searchRoutes from './modules/search/search.routes.js'
+import integrationRoutes from './modules/integration/integration.routes.js'
+import { groupAnalyticsRoutes, adminAnalyticsRoutes } from './modules/analytics/analytics.routes.js'
 
 const app = express()
 
@@ -33,6 +42,16 @@ app.use(globalLimiter)
 // Routes
 app.use('/api/health', healthRoutes)
 app.use('/api/auth', authRoutes)
+app.use('/api/groups', groupRoutes)
+app.use('/api/groups/:slug/posts', postRoutes)
+app.use('/api/groups/:slug/courses', courseRoutes)
+app.use('/api/groups/:slug/events', eventRoutes)
+app.use('/api/groups/:slug/search', searchRoutes)
+app.use('/api/groups/:slug/integrations', integrationRoutes)
+app.use('/api/notifications', notificationRoutes)
+app.use('/api/billing', billingRoutes)
+app.use('/api/groups/:slug/analytics', groupAnalyticsRoutes)
+app.use('/api/admin/analytics', adminAnalyticsRoutes)
 
 // Error handling (must be last)
 app.use(notFoundHandler)
