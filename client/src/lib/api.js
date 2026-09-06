@@ -7,6 +7,15 @@ import * as mocks from "./mocks";
 
 const LATENCY_MS = 120;
 
+// Mutable copies of the seed. Writes land here so they survive navigation
+// within a session; a full page load starts them over.
+let group = structuredClone(mocks.group);
+let categories = structuredClone(mocks.categories);
+let tiers = structuredClone(mocks.tiers);
+let joinQuestions = structuredClone(mocks.joinQuestions);
+let preferences = structuredClone(mocks.notificationPreferences);
+const invites = structuredClone(mocks.invites);
+
 /**
  * The real endpoint defaults to 20 per page. The seed data holds four posts, so
  * the mock pages them two at a time and the feed's pagination is exercised
@@ -33,14 +42,18 @@ function previewRole() {
   return ROLES.includes(asked) ? asked : null;
 }
 
-/** Everything the app shell needs before it can render a group. */
+/**
+ * Everything the app shell needs before it can render a group. Reads the same
+ * mutable records the settings panels write, so a rename or a reorder there
+ * shows up in the shell and the feed without a reload.
+ */
 export function fetchGroupBundle(slug) {
   const role = previewRole();
   return resolve({
-    group: { ...mocks.group, slug },
+    group: { ...group, slug },
     membership: role ? { ...mocks.membership, role } : mocks.membership,
-    categories: mocks.categories,
-    tiers: mocks.tiers,
+    categories,
+    tiers,
     user: mocks.session.user,
   });
 }
@@ -355,4 +368,115 @@ export function cancelEvent(eventId) {
   const event = events.find((e) => e.id === eventId);
   event.isCancelled = true;
   return resolve(event);
+}
+
+/* -------------------------------- settings -------------------------------- */
+
+export function fetchSettings(slug) {
+  return resolve({
+    group: { ...group, slug },
+    categories,
+    tiers,
+    questions: joinQuestions,
+    preferences,
+    invites,
+  });
+}
+
+export function updateGroup(patch) {
+  group = { ...group, ...patch };
+  return resolve(group);
+}
+
+export function updatePricing(patch) {
+  // The API refuses Paid without a price and an interval; mirror that here so
+  // the client never learns the rule only from a server it cannot reach.
+  if (patch.pricingModel === "PAID" && (!patch.price || !patch.billingInterval)) {
+    return Promise.reject(new Error("A paid community needs a price and a billing interval."));
+  }
+  group = {
+    ...group,
+    ...patch,
+    price: patch.pricingModel === "FREE" ? null : patch.price,
+    billingInterval: patch.pricingModel === "FREE" ? null : patch.billingInterval,
+    trialDays: patch.pricingModel === "FREE" ? null : patch.trialDays,
+  };
+  return resolve(group);
+}
+
+/* categories */
+
+export function addCategory(name) {
+  const category = { id: `local-${Date.now()}`, name, postCount: 0, position: categories.length };
+  categories = [...categories, category];
+  return resolve(category);
+}
+
+export function renameCategory(categoryId, name) {
+  categories = categories.map((c) => (c.id === categoryId ? { ...c, name } : c));
+  return resolve(categories);
+}
+
+export function deleteCategory(categoryId) {
+  categories = categories.filter((c) => c.id !== categoryId).map((c, i) => ({ ...c, position: i }));
+  return resolve(categories);
+}
+
+export function reorderCategories(orderedIds) {
+  const byId = new Map(categories.map((c) => [c.id, c]));
+  categories = orderedIds.map((id, i) => ({ ...byId.get(id), position: i }));
+  return resolve(categories);
+}
+
+/* tiers — name only, never a price */
+
+export function addTier(name) {
+  const tier = { id: `local-${Date.now()}`, name, memberCount: 0, lockedContent: "no locked content" };
+  tiers = [...tiers, tier];
+  return resolve(tier);
+}
+
+export function renameTier(tierId, name) {
+  tiers = tiers.map((t) => (t.id === tierId ? { ...t, name } : t));
+  return resolve(tiers);
+}
+
+export function deleteTier(tierId) {
+  tiers = tiers.filter((t) => t.id !== tierId);
+  return resolve(tiers);
+}
+
+/* join questions — at most three */
+
+export function saveQuestions(questions) {
+  if (questions.length > 3) return Promise.reject(new Error("Three questions is the maximum."));
+  joinQuestions = questions.map((q, i) => ({ ...q, id: q.id ?? `local-${i}`, position: i }));
+  return resolve(joinQuestions);
+}
+
+/* notification preferences */
+
+export function savePreferences(next) {
+  preferences = { ...preferences, ...next };
+  return resolve(preferences);
+}
+
+/* invites */
+
+export function createInvite({ maxUses, expiresInDays }) {
+  const code = `RJHQ-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  const expiresAt = new Date(Date.now() + Number(expiresInDays) * 86_400_000).toISOString();
+  const invite = { id: `local-${Date.now()}`, code, useCount: 0, maxUses: Number(maxUses), expiresAt };
+  invites.items = [invite, ...invites.items];
+  return resolve(invite);
+}
+
+export function revokeInvite(inviteId) {
+  invites.items = invites.items.filter((i) => i.id !== inviteId);
+  return resolve(invites.items);
+}
+
+export function emailInvites(emails) {
+  if (emails.length > 50) return Promise.reject(new Error("Fifty addresses at a time is the maximum."));
+  return resolve({ sent: emails.length });
 }

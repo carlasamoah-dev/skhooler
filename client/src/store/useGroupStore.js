@@ -16,12 +16,13 @@ export const useGroupStore = create((set, get) => ({
   status: "idle", // idle | loading | ready | error
   error: null,
 
-  async hydrate(slug) {
+  async hydrate(slug, { force = false } = {}) {
     if (!slug) return;
     const { slug: current, status } = get();
-    if (current === slug && (status === "ready" || status === "loading")) return;
+    if (!force && current === slug && (status === "ready" || status === "loading")) return;
 
-    set({ slug, status: "loading", error: null });
+    // A forced refresh keeps the current data on screen while it reloads.
+    set({ slug, status: force ? get().status : "loading", error: null });
     try {
       const bundle = await fetchGroupBundle(slug);
       // A newer slug may have started loading while this request was in flight.
