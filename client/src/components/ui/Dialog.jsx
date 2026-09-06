@@ -13,9 +13,10 @@ const FOCUSABLE =
  * Modal dialog: traps focus while open, closes on Escape or a backdrop click,
  * and restores focus to whatever opened it.
  */
-export default function Dialog({ open, onClose, title, width = 440, actions, className, children }) {
+export default function Dialog({ open, onClose, title, width = 440, actions, hideClose = false, className, children }) {
   const panelRef = useRef(null);
   const returnFocusRef = useRef(null);
+  const downOnBackdropRef = useRef(false);
 
   const handleKeyDown = useCallback(
     (e) => {
@@ -63,7 +64,14 @@ export default function Dialog({ open, onClose, title, width = 440, actions, cla
   return (
     <div
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose?.();
+        downOnBackdropRef.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        // Both ends of the click must be the backdrop: a drag that started
+        // inside the panel should not dismiss it, and closing on mousedown
+        // would let the trailing mouseup steal back the restored focus.
+        if (downOnBackdropRef.current && e.target === e.currentTarget) onClose?.();
+        downOnBackdropRef.current = false;
       }}
       onKeyDown={handleKeyDown}
       className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/45 p-4"
@@ -77,14 +85,16 @@ export default function Dialog({ open, onClose, title, width = 440, actions, cla
         style={{ width: `min(${width}px, 100%)` }}
         className={cn("rise relative bg-surface rounded-overlay shadow-lg p-9 outline-none", className)}
       >
-        <IconButton
-          icon={X}
-          label="Close"
-          variant="plain"
-          size={36}
-          onClick={onClose}
-          className="absolute top-4 right-4"
-        />
+        {hideClose ? null : (
+          <IconButton
+            icon={X}
+            label="Close"
+            variant="plain"
+            size={36}
+            onClick={onClose}
+            className="absolute top-4 right-4"
+          />
+        )}
         {title ? <h2 className="text-[26px] pr-10">{title}</h2> : null}
         {children}
         {actions ? <div className="mt-7 flex items-center gap-3">{actions}</div> : null}

@@ -1,8 +1,8 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
+/** `mode` is null while the dialog is closed. */
 export const useAuthModalStore = create((set) => ({
-  isOpen: false,
-  view: 'login', // 'login', 'signup', 'forgot'
-  openModal: (view = 'login') => set({ isOpen: true, view }),
-  closeModal: () => set({ isOpen: false }),
+  mode: null, // 'login' | 'signup' | null
+  openModal: (mode = "login") => set({ mode }),
+  closeModal: () => set({ mode: null }),
 }));

@@ -3,6 +3,7 @@ import { Manrope, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
 import AuthModalProvider from "@/components/AuthModalProvider";
+import SessionProvider from "@/components/SessionProvider";
 
 const display = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -27,8 +28,10 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${display.variable} ${sans.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-ground text-ink">
-        <AuthModalProvider />
-        {children}
+        <SessionProvider>
+          <AuthModalProvider />
+          {children}
+        </SessionProvider>
       </body>
     </html>
   );

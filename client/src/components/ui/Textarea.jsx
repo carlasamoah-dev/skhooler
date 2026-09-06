@@ -24,11 +24,10 @@ export default function Textarea({ label, error, rows = 5, id, className, ...pro
         className={cn("input", error && "border-alert", className)}
         {...props}
       />
-      {error ? (
-        <p id={messageId} className="mt-1.5 text-meta text-alert min-h-[18px]">
-          {error}
-        </p>
-      ) : null}
+      {/* Always rendered, so an error appearing cannot shift the layout. */}
+      <p id={messageId} className="mt-1.5 text-meta text-alert leading-[18px] min-h-[18px]">
+        {error}
+      </p>
     </div>
   );
 }

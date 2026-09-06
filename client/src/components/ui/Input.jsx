@@ -39,15 +39,13 @@ export default function Input({
           {...props}
         />
       </div>
-      {/* Reserved so an error appearing does not shift the layout. */}
-      {error || hint ? (
-        <p
-          id={messageId}
-          className={cn("mt-1.5 text-meta min-h-[18px]", error ? "text-alert" : "text-sand-700")}
-        >
-          {error || hint}
-        </p>
-      ) : null}
+      {/* Always rendered, so an error appearing cannot shift the layout. */}
+      <p
+        id={messageId}
+        className={cn("mt-1.5 text-meta leading-[18px] min-h-[18px]", error ? "text-alert" : "text-sand-700")}
+      >
+        {error || hint}
+      </p>
     </div>
   );
 }

@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Bell } from "lucide-react";
+import { Bell, LogOut } from "lucide-react";
 
+import { useSessionStore } from "@/store/useSessionStore";
 import { Avatar, IconButton } from "@/components/ui";
 import SearchField from "./SearchField";
 
 export default function TopBar({ group, user, unreadCount = 0, searchValue, onSearch, onToggleNotifications }) {
+  const signOut = useSessionStore((s) => s.signOut);
   const groupName = group?.name ?? "";
   const userName = user ? `${user.firstName} ${user.lastName}` : "";
 
@@ -44,6 +46,7 @@ export default function TopBar({ group, user, unreadCount = 0, searchValue, onSe
             onClick={onToggleNotifications}
           />
           <Avatar name={userName} src={user?.avatarUrl ?? undefined} size={44} />
+          <IconButton icon={LogOut} label="Log out" variant="plain" size={36} onClick={signOut} />
         </div>
       </div>
     </header>
