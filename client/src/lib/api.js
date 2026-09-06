@@ -179,7 +179,18 @@ export function fetchNextEvent() {
   return resolve(upcoming[0] ?? null);
 }
 
+/** Mock-only: `?fail=rsvp` makes the write reject, so the optimistic revert can be seen. */
+function shouldFail(what) {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("fail") === what;
+}
+
 export function rsvpEvent(eventId, status) {
+  if (shouldFail("rsvp")) {
+    return new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Could not save your RSVP.")), LATENCY_MS),
+    );
+  }
   const event = events.find((e) => e.id === eventId);
   if (event.myRsvp === "GOING" && status !== "GOING") event.attendeeCount -= 1;
   if (event.myRsvp !== "GOING" && status === "GOING") event.attendeeCount += 1;
@@ -296,4 +307,52 @@ export function fetchAnalyticsGrowth(interval = "week") {
 
 export function fetchAnalyticsSources() {
   return resolve({ sources: mocks.analyticsSources, referral: mocks.referralStats });
+}
+
+/* -------------------------------- events ---------------------------------- */
+
+export function fetchEvents({ filter = "upcoming", now = Date.now() } = {}) {
+  const withinFilter = (event) => {
+    if (filter === "all") return true;
+    // A recurring event keeps coming round, so it is never "past".
+    if (event.isRecurring) return filter === "upcoming";
+    const isPast = new Date(event.startDate).getTime() < now;
+    return filter === "past" ? isPast : !isPast;
+  };
+
+  const items = events
+    .filter(withinFilter)
+    .sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+
+  return resolve({ items, nextCursor: null });
+}
+
+/** Every event, whatever the filter — the month grid shows the month, not a slice. */
+export function fetchEventsForMonth() {
+  return resolve({ items: [...events].sort((a, b) => new Date(a.startDate) - new Date(b.startDate)) });
+}
+
+export function createEvent(payload) {
+  const event = {
+    id: `local-${Date.now()}`,
+    attendeeCount: 0,
+    myRsvp: null,
+    isCancelled: false,
+    timezone: mocks.group.timezone ?? "Europe/London",
+    ...payload,
+  };
+  events.push(event);
+  return resolve(event);
+}
+
+export function updateEvent(eventId, payload) {
+  const event = events.find((e) => e.id === eventId);
+  Object.assign(event, payload);
+  return resolve(event);
+}
+
+export function cancelEvent(eventId) {
+  const event = events.find((e) => e.id === eventId);
+  event.isCancelled = true;
+  return resolve(event);
 }
