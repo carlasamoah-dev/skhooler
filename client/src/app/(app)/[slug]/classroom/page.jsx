@@ -1,7 +1,5 @@
-import { GraduationCap } from "lucide-react";
-
-import { EmptyState } from "@/components/ui";
+import ClassroomClient from "@/components/classroom/ClassroomClient";
 
 export default function Page() {
-  return <EmptyState icon={GraduationCap} title="Classroom" body="Courses, modules and lessons arrive in phase 4." />;
+  return <ClassroomClient />;
 }

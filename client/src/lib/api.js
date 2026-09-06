@@ -186,3 +186,114 @@ export function rsvpEvent(eventId, status) {
   event.myRsvp = status;
   return resolve({ myRsvp: event.myRsvp, attendeeCount: event.attendeeCount });
 }
+
+/* ------------------------------- classroom -------------------------------- */
+
+const courses = structuredClone(mocks.courses);
+const courseDetail = structuredClone(mocks.courseDetail);
+const lessonDetail = structuredClone(mocks.lesson);
+
+export function fetchCourses() {
+  return resolve(courses);
+}
+
+/**
+ * Only one course carries a module tree in the seed data. The others resolve
+ * with `modules: null`, which the classroom surfaces rather than faking.
+ */
+export function fetchCourse(courseSlug) {
+  const course = courses.find((c) => c.slug === courseSlug);
+  if (!course) return Promise.reject(new Error("That course no longer exists."));
+  if (course.slug !== courseDetail.slug) return resolve({ ...course, modules: null });
+  return resolve({ ...course, modules: courseDetail.modules });
+}
+
+/** Flattens the module tree so prev/next can walk it. */
+function lessonOrder() {
+  return courseDetail.modules.flatMap((m) => m.lessons.map((l) => ({ ...l, moduleId: m.id, moduleTitle: m.title })));
+}
+
+export function fetchLesson(lessonId) {
+  const order = lessonOrder();
+  const index = order.findIndex((l) => l.id === lessonId);
+  if (index === -1) return Promise.reject(new Error("That lesson no longer exists."));
+
+  const entry = order[index];
+  // Only one lesson carries full body copy; the rest reuse its shape.
+  const detail = entry.id === lessonDetail.id ? lessonDetail : null;
+
+  return resolve({
+    ...entry,
+    lessonNumber: courseDetail.modules.find((m) => m.id === entry.moduleId).lessons.findIndex((l) => l.id === entry.id) + 1,
+    content: detail?.content ?? null,
+    videoPlaybackId: detail?.videoPlaybackId ?? `mock-playback-${entry.id}`,
+    chapters: detail?.chapters ?? [],
+    attachments: detail?.attachments ?? [],
+    previousLessonId: index > 0 ? order[index - 1].id : null,
+    nextLessonId: index < order.length - 1 ? order[index + 1].id : null,
+  });
+}
+
+export function setLessonProgress(lessonId, isCompleted) {
+  for (const group of courseDetail.modules) {
+    const lesson = group.lessons.find((l) => l.id === lessonId);
+    if (!lesson) continue;
+    lesson.progress = { ...lesson.progress, isCompleted };
+  }
+
+  // The course percentage is derived, so the card and the sidebar cannot drift.
+  const all = courseDetail.modules.flatMap((m) => m.lessons);
+  const done = all.filter((l) => l.progress?.isCompleted).length;
+  const percent = Math.round((done / all.length) * 100);
+  const card = courses.find((c) => c.slug === courseDetail.slug);
+  if (card) card.progressPercent = percent;
+  courseDetail.progressPercent = percent;
+
+  return resolve({ isCompleted, progressPercent: percent });
+}
+
+/* ------------------------------- analytics -------------------------------- */
+
+const WEEK = mocks.analyticsGrowth.points;
+
+/**
+ * The seed carries a weekly series. Day and month are derived from it so the
+ * interval control has something to switch between; only the labels differ in
+ * kind, and the real endpoint returns all three.
+ */
+function seriesFor(interval) {
+  if (interval === "week") return WEEK;
+
+  const today = new Date("2026-09-05T00:00:00Z");
+  if (interval === "day") {
+    return WEEK.map((point, i) => {
+      const date = new Date(today);
+      date.setUTCDate(date.getUTCDate() - (WEEK.length - 1 - i));
+      return {
+        label: date.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }),
+        value: Math.round(point.value / 7),
+      };
+    });
+  }
+
+  return WEEK.map((point, i) => {
+    const date = new Date(today);
+    date.setUTCMonth(date.getUTCMonth() - (WEEK.length - 1 - i));
+    return {
+      label: date.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" }),
+      value: point.value * 4,
+    };
+  });
+}
+
+export function fetchAnalyticsOverview() {
+  return resolve(mocks.analyticsOverview);
+}
+
+export function fetchAnalyticsGrowth(interval = "week") {
+  return resolve({ interval, points: seriesFor(interval) });
+}
+
+export function fetchAnalyticsSources() {
+  return resolve({ sources: mocks.analyticsSources, referral: mocks.referralStats });
+}
