@@ -5,7 +5,7 @@ import { REFRESH_COOKIE } from "@/lib/auth/cookies";
 /** Public paths. Everything else under /[slug]/... needs a session. */
 const PUBLIC_PREFIXES = ["/login", "/signup", "/forgot-password", "/reset-password", "/verify-email", "/discover"];
 
-const APP_SECTIONS = ["community", "classroom", "calendar", "members", "dashboard", "settings"];
+const APP_SECTIONS = ["community", "posts", "classroom", "calendar", "members", "dashboard", "settings"];
 
 function isAppRoute(pathname) {
   const segments = pathname.split("/").filter(Boolean);

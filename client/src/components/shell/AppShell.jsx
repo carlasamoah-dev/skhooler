@@ -15,6 +15,8 @@ import TopBar from "./TopBar";
 /** Which nav tab a route lights up. Post detail and the composer stay on the feed. */
 function activeTabFrom(segments) {
   const first = segments[0];
+  // Post detail and the composer live under the feed tab.
+  if (first === "posts") return "feed";
   if (first === "classroom") return "class";
   if (first === "calendar") return "cal";
   if (first === "members") return "members";
