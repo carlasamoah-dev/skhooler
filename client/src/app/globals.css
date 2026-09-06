@@ -1,19 +1,78 @@
 @import "tailwindcss";
 
-@theme {
-  --color-brand-primary: #18181b; /* zinc-900 */
-  --color-brand-hover: #27272a; /* zinc-800 */
-  --color-brand-accent: #3b82f6; /* Subtle blue for distinct active states */
-}
+/* Tailwind v4 defaults `dark:` to prefers-color-scheme. Skhooler toggles the
+   theme explicitly, so bind the variant to the `.dark` class on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #fafafa;
-  --foreground: #18181b;
+  --app-bg: #fafafa;
+  --app-fg: #18181b;
+  --app-surface: #ffffff;
+  --app-surface-muted: #f4f4f5;
+  --app-border: #e4e4e7;
+  --app-muted-fg: #71717a;
+  --app-brand: #18181b;
+  --app-brand-hover: #27272a;
+  --app-on-brand: #ffffff;
+  color-scheme: light;
+}
+
+.dark {
+  --app-bg: #09090b;
+  --app-fg: #fafafa;
+  --app-surface: #18181b;
+  --app-surface-muted: #27272a;
+  --app-border: #3f3f46;
+  --app-muted-fg: #a1a1aa;
+  --app-brand: #fafafa;
+  --app-brand-hover: #e4e4e7;
+  --app-on-brand: #18181b;
+  color-scheme: dark;
+}
+
+/* `inline` so the utilities resolve the custom properties at use time, which is
+   what lets a single class flip when `.dark` is added or removed. */
+@theme inline {
+  --color-app-bg: var(--app-bg);
+  --color-app-fg: var(--app-fg);
+  --color-surface: var(--app-surface);
+  --color-surface-muted: var(--app-surface-muted);
+  --color-app-border: var(--app-border);
+  --color-muted-fg: var(--app-muted-fg);
+  --color-brand-primary: var(--app-brand);
+  --color-brand-hover: var(--app-brand-hover);
+  --color-on-brand: var(--app-on-brand);
+  --color-brand-accent: #3b82f6;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
+  color: var(--app-fg);
+  background: var(--app-bg);
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   @apply antialiased;
+}
+
+@keyframes skhooler-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes skhooler-panel-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: none; }
+}
+
+.skhooler-overlay-in {
+  animation: skhooler-overlay-in 200ms ease-out;
+}
+
+.skhooler-panel-in {
+  animation: skhooler-panel-in 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skhooler-overlay-in,
+  .skhooler-panel-in {
+    animation: none;
+  }
 }
