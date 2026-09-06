@@ -480,3 +480,82 @@ export function emailInvites(emails) {
   if (emails.length > 50) return Promise.reject(new Error("Fifty addresses at a time is the maximum."));
   return resolve({ sent: emails.length });
 }
+
+/* -------------------------------- members --------------------------------- */
+
+const members = structuredClone(mocks.members.items);
+let memberCounts = structuredClone(mocks.members.counts);
+
+const ROLE_FILTER = {
+  admins: ["OWNER", "ADMIN"],
+  mods: ["MODERATOR"],
+  members: ["MEMBER"],
+};
+
+export function fetchMembers({ role = "all" } = {}) {
+  const wanted = ROLE_FILTER[role];
+  const items = wanted ? members.filter((m) => wanted.includes(m.role)) : members;
+  return resolve({ items, nextCursor: null, counts: memberCounts });
+}
+
+export function fetchMemberProfile(memberId) {
+  const member = members.find((m) => m.id === memberId);
+  return member ? resolve(member) : Promise.reject(new Error("That member is no longer in the group."));
+}
+
+export function changeMemberRole(memberId, role) {
+  const member = members.find((m) => m.id === memberId);
+  member.role = role;
+  return resolve(member);
+}
+
+export function changeMemberTier(memberId, tierId) {
+  const member = members.find((m) => m.id === memberId);
+  member.tier = tierId ? tiers.find((t) => t.id === tierId) ?? null : null;
+  return resolve(member);
+}
+
+export function setCourseAccess(memberId, courseId, granted) {
+  const member = members.find((m) => m.id === memberId);
+  const current = new Set(member.courseAccess ?? []);
+  if (granted) current.add(courseId);
+  else current.delete(courseId);
+  member.courseAccess = [...current];
+  return resolve(member);
+}
+
+export function removeMember(memberId) {
+  const index = members.findIndex((m) => m.id === memberId);
+  if (index === -1) return Promise.reject(new Error("That member is no longer in the group."));
+  const [removed] = members.splice(index, 1);
+  memberCounts = {
+    ...memberCounts,
+    all: memberCounts.all - 1,
+    admins: memberCounts.admins - (removed.role === "ADMIN" || removed.role === "OWNER" ? 1 : 0),
+    moderators: memberCounts.moderators - (removed.role === "MODERATOR" ? 1 : 0),
+    members: memberCounts.members - (removed.role === "MEMBER" ? 1 : 0),
+  };
+  return resolve({ ok: true });
+}
+
+/** Approving a request adds to the group; both outcomes clear the queue entry. */
+export function approveJoinRequest(requestId) {
+  joinRequests = joinRequests.filter((r) => r.id !== requestId);
+  memberCounts = {
+    ...memberCounts,
+    all: memberCounts.all + 1,
+    members: memberCounts.members + 1,
+    pendingRequests: memberCounts.pendingRequests - 1,
+  };
+  return resolve({ ok: true, counts: memberCounts });
+}
+
+export function declineJoinRequest(requestId) {
+  joinRequests = joinRequests.filter((r) => r.id !== requestId);
+  memberCounts = { ...memberCounts, pendingRequests: memberCounts.pendingRequests - 1 };
+  return resolve({ ok: true, counts: memberCounts });
+}
+
+export function fetchGeography() {
+  return resolve(mocks.memberGeography);
+}
