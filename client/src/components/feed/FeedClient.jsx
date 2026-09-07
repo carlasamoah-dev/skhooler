@@ -9,6 +9,7 @@ import { useGroupStore } from "@/store/useGroupStore";
 import { EmptyState, Skeleton } from "@/components/ui";
 import CategoryFilter from "./CategoryFilter";
 import ComposerBar from "./ComposerBar";
+import ComposerModal from "./ComposerModal";
 import FeedSidebar from "./FeedSidebar";
 import PostCard from "./PostCard";
 import SortSelect from "./SortSelect";
@@ -41,7 +42,12 @@ export default function FeedClient() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-5">
       <div className="flex flex-col gap-4">
-        {can("post:create") ? <ComposerBar user={user} slug={slug} /> : null}
+        {can("post:create") ? (
+          <>
+            <ComposerBar user={user} slug={slug} />
+            <ComposerModal />
+          </>
+        ) : null}
 
         <div className="flex flex-wrap items-center gap-3">
           <CategoryFilter categories={categories} activeId={filterCategoryId} onChange={setCategory} />

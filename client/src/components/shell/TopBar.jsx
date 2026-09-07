@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { Bell, LogOut } from "lucide-react";
 
-import { useSessionStore } from "@/store/useSessionStore";
 import { Avatar, IconButton } from "@/components/ui";
 import SearchField from "./SearchField";
 
-export default function TopBar({ group, user, unreadCount = 0, searchValue, onSearch, onToggleNotifications }) {
-  const signOut = useSessionStore((s) => s.signOut);
+export default function TopBar({ group, user, unreadCount = 0, searchValue, onSearch, onToggleNotifications, onSignOut }) {
+  const signOut = onSignOut ?? (() => {});
   const groupName = group?.name ?? "";
   const userName = user ? `${user.firstName} ${user.lastName}` : "";
 

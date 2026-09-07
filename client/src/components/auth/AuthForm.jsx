@@ -3,9 +3,13 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 
-import * as auth from "@/lib/authClient";
-import { useSessionStore } from "@/store/useSessionStore";
 import { Button, Input } from "@/components/ui";
+import * as mockAuth from "@/lib/mockAuth";
+
+// Inline wrapper for consistent call shape
+function mockAuthCall(mode, values) {
+  return mode === "signup" ? mockAuth.register(values) : mockAuth.login(values);
+}
 
 export const COPY = {
   login: {
@@ -34,7 +38,6 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  */
 export default function AuthForm({ mode, onSuccess, onSwitch, switchAs }) {
   const copy = COPY[mode];
-  const setUser = useSessionStore((s) => s.setUser);
   const [formError, setFormError] = useState(null);
 
   const {
@@ -47,19 +50,10 @@ export default function AuthForm({ mode, onSuccess, onSwitch, switchAs }) {
   const onSubmit = async (values) => {
     setFormError(null);
     try {
-      const { user } = mode === "signup" ? await auth.register(values) : await auth.login(values);
-      setUser(user);
+      const { user } = await mockAuthCall(mode, values);
       onSuccess?.(user);
     } catch (error) {
-      // Field errors go under their field; everything else becomes one banner,
-      // including the rate-limit message, which must not read as a generic failure.
-      if (error.fieldErrors) {
-        for (const [field, message] of Object.entries(error.fieldErrors)) {
-          setError(field, { type: "server", message });
-        }
-        return;
-      }
-      setFormError(error.message);
+      setFormError(error.message ?? "Something went wrong. Please try again.");
     }
   };
 

@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect } from "react";
-
 import { useSessionStore } from "@/store/useSessionStore";
 
-/** Turns the httpOnly cookie into a user once per page load. */
 export default function SessionProvider({ children }) {
   const bootstrap = useSessionStore((s) => s.bootstrap);
+  const status = useSessionStore((s) => s.status);
 
   useEffect(() => {
     bootstrap();
   }, [bootstrap]);
 
-  return children;
+  if (status === "unknown" || status === "loading") {
+    return null; // Return null or a global loader while restoring session
+  }
+
+  return <>{children}</>;
 }

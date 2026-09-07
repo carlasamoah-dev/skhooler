@@ -4,7 +4,7 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, TriangleAlert } from "lucide-react";
 
-import * as auth from "@/lib/authClient";
+import * as auth from "@/lib/mockAuth";
 import AuthPageShell from "@/components/auth/AuthPageShell";
 import { Button } from "@/components/ui";
 

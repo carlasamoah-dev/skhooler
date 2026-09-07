@@ -85,4 +85,18 @@ export const useFeedStore = create((set, get) => ({
       }));
     }
   },
+
+  /** Optimistic post creation. */
+  addPost(postPayload) {
+    const newPost = {
+      id: crypto.randomUUID(),
+      ...postPayload,
+      createdAt: new Date().toISOString(),
+      likeCount: 0,
+      commentCount: 0,
+      hasLiked: false,
+    };
+    // Prepend to posts and re-order
+    set((s) => ({ posts: order([newPost, ...s.posts], s.sort) }));
+  },
 }));

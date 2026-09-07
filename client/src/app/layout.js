@@ -1,23 +1,7 @@
-import { Manrope, Plus_Jakarta_Sans } from "next/font/google";
-
 import "./globals.css";
-
 import AuthModalProvider from "@/components/AuthModalProvider";
 import SessionProvider from "@/components/SessionProvider";
-
-const display = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["700", "800"],
-  variable: "--font-jakarta",
-  display: "swap",
-});
-
-const sans = Manrope({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-manrope",
-  display: "swap",
-});
+import NavigationRail from "@/components/shell/NavigationRail";
 
 export const metadata = {
   title: "Skhooler - Discover Communities",
@@ -26,11 +10,14 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${display.variable} ${sans.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-ground text-ink">
+    <html lang="en" className="h-full antialiased">
+      <body className="h-screen flex bg-zinc-50 text-zinc-900 selection:bg-zinc-900 selection:text-white overflow-hidden">
         <SessionProvider>
           <AuthModalProvider />
-          {children}
+          <NavigationRail />
+          <main className="flex-1 h-screen overflow-y-auto flex flex-col relative">
+            {children}
+          </main>
         </SessionProvider>
       </body>
     </html>

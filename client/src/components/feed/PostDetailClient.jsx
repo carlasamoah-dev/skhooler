@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import Linkify from "react-linkify";
 
 import {
   createComment,
@@ -22,7 +23,7 @@ import CommentThread from "./CommentThread";
 import Poll from "./Poll";
 import PostHeader from "./PostHeader";
 
-export default function PostDetailClient({ postId }) {
+export default function PostDetailClient({ postId, inModal = false }) {
   const can = useCan();
   const { slug, user } = useGroupStore();
   const [post, setPost] = useState(null);
@@ -86,10 +87,12 @@ export default function PostDetailClient({ postId }) {
 
   return (
     <div className="mx-auto max-w-[860px] flex flex-col gap-4">
-      <Link href={`/${slug}/community`} className="btn btn-ghost self-start no-underline">
-        <ArrowLeft className="lucide w-4 h-4" aria-hidden="true" />
-        Back to community
-      </Link>
+      {!inModal && (
+        <Link href={`/${slug}/community`} className="btn btn-ghost self-start no-underline">
+          <ArrowLeft className="lucide w-4 h-4" aria-hidden="true" />
+          Back to community
+        </Link>
+      )}
 
       <Card as="article" padding={32} radius="overlay" className="px-9">
         <PostHeader
@@ -102,9 +105,44 @@ export default function PostDetailClient({ postId }) {
         />
 
         <h2 className="mt-5">{post.title}</h2>
-        <p className="mt-3 text-body-lg max-w-[70ch]">{post.content}</p>
+        <div className="mt-3 text-body-lg max-w-[70ch] break-words">
+          <Linkify componentDecorator={(decoratedHref, decoratedText, key) => (
+            <a target="blank" href={decoratedHref} key={key} className="text-blue-600 hover:underline">
+              {decoratedText}
+            </a>
+          )}>
+            {post.content}
+          </Linkify>
+        </div>
 
-        {post.videoPlaybackId ? (
+        {/* Video Preview */}
+        {post.videoUrl && (
+          <div className="mt-6 border border-divider rounded-xl overflow-hidden bg-zinc-50 flex items-center justify-center p-8">
+            <div className="text-center">
+              <span className="block font-semibold text-zinc-900 mb-2">Attached Video</span>
+              <a href={post.videoUrl} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+                {post.videoUrl}
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* Attached Files */}
+        {post.files && post.files.length > 0 && (
+          <div className="mt-6 flex flex-col gap-2">
+            {post.files.map((file, i) => (
+              <div key={i} className="px-5 py-4 border border-divider rounded-lg bg-zinc-50 flex items-center gap-3">
+                <span className="w-10 h-10 rounded-full bg-zinc-200 flex items-center justify-center shrink-0">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-500"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+                </span>
+                <span className="font-medium text-zinc-900 truncate">{file}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Original videoPlaybackId logic (if needed for old mock data) */}
+        {post.videoPlaybackId && !post.videoUrl ? (
           <div
             className="mt-6 aspect-video w-full rounded-inner bg-video"
             role="img"

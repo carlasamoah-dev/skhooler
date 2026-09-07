@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { MailCheck } from "lucide-react";
 
-import * as auth from "@/lib/authClient";
+import * as auth from "@/lib/mockAuth";
 import AuthPageShell from "@/components/auth/AuthPageShell";
 import { Button, Input } from "@/components/ui";
 
