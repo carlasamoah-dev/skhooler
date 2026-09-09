@@ -1,12 +1,16 @@
+import NavigationRail from "@/components/shell/NavigationRail";
 import GlobalNavbar from "@/components/GlobalNavbar";
 
 export default function MainLayout({ children }) {
   return (
-    <>
-      <GlobalNavbar />
-      <main className="flex-1 w-full bg-ground">
-        {children}
-      </main>
-    </>
+    <div className="flex h-full overflow-hidden">
+      <NavigationRail />
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        <GlobalNavbar />
+        <main className="flex-1 overflow-y-auto bg-ground">
+          {children}
+        </main>
+      </div>
+    </div>
   );
 }

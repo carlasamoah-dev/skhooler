@@ -1,15 +1,21 @@
 "use client";
 
 import Link from "next/link";
+import { LogOut } from "lucide-react";
 import { useAuthModalStore } from "@/store/useAuthModalStore";
+import { useSessionStore } from "@/store/useSessionStore";
+import { Avatar, IconButton } from "@/components/ui";
 
 export default function CommunityNavbar() {
   const openModal = useAuthModalStore((state) => state.openModal);
+  const user = useSessionStore((s) => s.user);
+  const signOut = useSessionStore((s) => s.signOut);
+  const userName = user ? `${user.firstName} ${user.lastName}` : "";
 
   return (
     <nav className="sticky top-0 z-50 w-full h-[60px] bg-surface border-b border-divider flex items-center justify-between px-4 sm:px-6 shadow-soft">
       <div className="flex items-center gap-3">
-        <Link href="/" className="flex items-center gap-2 group">
+        <Link href="/" className="flex items-center gap-2 group no-underline">
           <div className="w-8 h-8 rounded-lg bg-brand text-ground flex items-center justify-center font-serif text-[10px] leading-tight text-center italic font-bold shadow-soft">
             Maker<br/>School.
           </div>
@@ -21,13 +27,20 @@ export default function CommunityNavbar() {
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
-        <button 
-          onClick={() => openModal('login')}
-          className="text-[13px] font-bold text-ink hover:text-brand-700 hover:border-brand border border-divider rounded-md px-5 py-2 transition-all shadow-soft"
-        >
-          LOG IN
-        </button>
+      <div className="flex items-center gap-3">
+        {user ? (
+          <>
+            <Avatar name={userName} src={user.avatarUrl} size={34} />
+            <IconButton icon={LogOut} label="Log out" variant="plain" size={34} onClick={signOut} />
+          </>
+        ) : (
+          <button
+            onClick={() => openModal('login')}
+            className="btn btn-primary text-[13px]"
+          >
+            Log in
+          </button>
+        )}
       </div>
     </nav>
   );

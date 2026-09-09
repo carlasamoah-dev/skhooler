@@ -44,7 +44,9 @@ export default function TopBar({ group, user, unreadCount = 0, searchValue, onSe
             badge={unreadCount}
             onClick={onToggleNotifications}
           />
-          <Avatar name={userName} src={user?.avatarUrl ?? undefined} size={44} />
+          <Link href="/account" className="flex shrink-0">
+            <Avatar name={userName} src={user?.avatarUrl ?? undefined} size={44} />
+          </Link>
           <IconButton icon={LogOut} label="Log out" variant="plain" size={36} onClick={signOut} />
         </div>
       </div>

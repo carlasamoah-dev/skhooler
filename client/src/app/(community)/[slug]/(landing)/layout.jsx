@@ -1,6 +1,6 @@
 import CommunityNavbar from "@/components/CommunityNavbar";
 
-export default function CommunityLayout({ children }) {
+export default function CommunityLandingLayout({ children }) {
   return (
     <>
       <CommunityNavbar />

@@ -7,6 +7,7 @@ import { useSelectedLayoutSegments } from "next/navigation";
 import { fetchNotifications } from "@/lib/api";
 import { useGroupStore } from "@/store/useGroupStore";
 import { useUiStore } from "@/store/useUiStore";
+import { useSessionStore } from "@/store/useSessionStore";
 import { Skeleton } from "@/components/ui";
 import NotificationPanel from "./NotificationPanel";
 import PrimaryNav from "./PrimaryNav";
@@ -29,6 +30,7 @@ export default function AppShell({ slug, children }) {
   const segments = useSelectedLayoutSegments();
   const { group, user, status, error, hydrate } = useGroupStore();
   const { notifOpen, toggleNotifications, closeNotifications } = useUiStore();
+  const signOut = useSessionStore((s) => s.signOut);
 
   const [search, setSearch] = useState("");
   const [notifications, setNotifications] = useState({ items: [], unreadCount: 0 });
@@ -75,20 +77,23 @@ export default function AppShell({ slug, children }) {
         searchValue={search}
         onSearch={setSearch}
         onToggleNotifications={toggleNotifications}
+        onSignOut={signOut}
       />
 
-      <div className="mx-auto w-full max-w-[1180px] px-7 py-5">
-        <div className="flex items-center gap-4 mb-4">
-          <PrimaryNav slug={slug} active={activeTabFrom(segments)} />
-          <Link
-            href={`/${slug}`}
-            className="btn btn-ghost hidden lg:inline-flex shrink-0 no-underline"
-          >
-            View public page
-          </Link>
-        </div>
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-[1180px] px-7 py-5">
+          <div className="flex items-center gap-4 mb-4">
+            <PrimaryNav slug={slug} active={activeTabFrom(segments)} />
+            <Link
+              href={`/${slug}`}
+              className="btn btn-ghost hidden lg:inline-flex shrink-0 no-underline"
+            >
+              View public page
+            </Link>
+          </div>
 
-        {children}
+          {children}
+        </div>
       </div>
 
       <NotificationPanel

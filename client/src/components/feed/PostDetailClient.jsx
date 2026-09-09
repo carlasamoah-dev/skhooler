@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MessageSquareOff } from "lucide-react";
 import Linkify from "react-linkify";
 
 import {
   createComment,
+  deletePost,
   fetchComments,
   fetchPost,
   toggleCommentLike,
+  togglePostComments,
   togglePostLike,
   togglePostPin,
   votePoll,
@@ -21,6 +23,7 @@ import { Button, Card, Checkbox, Skeleton } from "@/components/ui";
 import CommentComposer from "./CommentComposer";
 import CommentThread from "./CommentThread";
 import Poll from "./Poll";
+import PostActionsMenu from "./PostActionsMenu";
 import PostHeader from "./PostHeader";
 
 export default function PostDetailClient({ postId, inModal = false }) {
@@ -95,14 +98,21 @@ export default function PostDetailClient({ postId, inModal = false }) {
       )}
 
       <Card as="article" padding={32} radius="overlay" className="px-9">
-        <PostHeader
-          author={post.author}
-          createdAt={post.createdAt}
-          category={post.category}
-          isPinned={post.isPinned}
-          size={48}
-          showRole
-        />
+        {/* Header row with author info + actions menu */}
+        <div className="flex items-start justify-between gap-3">
+          <PostHeader
+            author={post.author}
+            createdAt={post.createdAt}
+            category={post.category}
+            isPinned={post.isPinned}
+            size={48}
+            showRole
+          />
+          <PostActionsMenu
+            post={post}
+            onPostChanged={(patch) => setPost((p) => ({ ...p, ...patch }))}
+          />
+        </div>
 
         <h2 className="mt-5">{post.title}</h2>
         <div className="mt-3 text-body-lg max-w-[70ch] break-words">
@@ -141,7 +151,6 @@ export default function PostDetailClient({ postId, inModal = false }) {
           </div>
         )}
 
-        {/* Original videoPlaybackId logic (if needed for old mock data) */}
         {post.videoPlaybackId && !post.videoUrl ? (
           <div
             className="mt-6 aspect-video w-full rounded-inner bg-video"
@@ -177,11 +186,23 @@ export default function PostDetailClient({ postId, inModal = false }) {
         </div>
       </Card>
 
+      {/* Comments section — respects commentsEnabled flag */}
       <Card padding={32} radius="overlay" className="px-9 py-7">
-        <CommentComposer user={user} onSubmit={(content) => addComment(content)} />
-        <div className="mt-5">
-          <CommentThread comments={comments} user={user} onLike={likeComment} onReply={addComment} />
-        </div>
+        {post.commentsEnabled === false ? (
+          <div className="flex items-center gap-3 text-sand-600 py-4">
+            <MessageSquareOff className="w-5 h-5 text-sand-400 shrink-0" />
+            <span className="text-[14px]">Comments have been turned off for this post.</span>
+          </div>
+        ) : (
+          <>
+            {can("comment:create") ? (
+              <CommentComposer user={user} onSubmit={(content) => addComment(content)} />
+            ) : null}
+            <div className="mt-5">
+              <CommentThread comments={comments} user={user} onLike={likeComment} onReply={addComment} />
+            </div>
+          </>
+        )}
       </Card>
     </div>
   );

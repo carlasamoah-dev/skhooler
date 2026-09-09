@@ -46,7 +46,17 @@ export async function resendVerification({ email } = {}) {
 export async function me() {
   await wait();
   // Return the mock session user
-  return { user: { id: "mock-1", email: "jonathan@skhooler.com", firstName: "Jonathan", lastName: "Ndayele", avatarUrl: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=64&h=64&fit=crop" } };
+  return { 
+    user: { 
+      id: "mock-1", 
+      email: "jonathan@skhooler.com", 
+      firstName: "Jonathan", 
+      lastName: "Ndayele", 
+      username: "jonathan-ndayele",
+      location: "Accra, Ghana",
+      avatarUrl: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=64&h=64&fit=crop" 
+    } 
+  };
 }
 
 export async function logout() {

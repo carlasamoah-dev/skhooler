@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Users, Lock, ChevronRight, PlayCircle, CheckCircle2 } from "lucide-react";
 import { useAuthModalStore } from "@/store/useAuthModalStore";
+import { useSessionStore } from "@/store/useSessionStore";
 
 const GALLERY_IMAGES = [
   "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1600&h=600&fit=crop",
@@ -12,6 +15,10 @@ const GALLERY_IMAGES = [
 
 export default function CommunityDetailsClient() {
   const openModal = useAuthModalStore((state) => state.openModal);
+  const user = useSessionStore((s) => s.user);
+  const pathname = usePathname();
+  // Extract slug from pathname e.g. "/remote-jobs-hq" → "remote-jobs-hq"
+  const slug = pathname.split("/").filter(Boolean)[0] ?? "";
   const [activeMedia, setActiveMedia] = useState(GALLERY_IMAGES[0]);
 
   return (
@@ -98,12 +105,22 @@ export default function CommunityDetailsClient() {
               Cancel anytime. Instant access to all courses, community feeds, and daily coaching.
             </p>
 
-            <button 
-              onClick={() => openModal('signup')}
-              className="w-full h-12 bg-brand hover:bg-brand-600 text-ground font-bold text-[15px] rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
-            >
-              Join Community
-            </button>
+            {user && (
+              <Link
+                href={`/${slug}/join`}
+                className="w-full h-12 bg-zinc-900 hover:bg-zinc-700 text-white font-bold text-[15px] rounded-xl transition-all flex items-center justify-center no-underline"
+              >
+                Join Community
+              </Link>
+            )}
+            {!user && (
+              <button
+                onClick={() => openModal('signup')}
+                className="w-full h-12 bg-zinc-900 hover:bg-zinc-700 text-white font-bold text-[15px] rounded-xl transition-all flex items-center justify-center"
+              >
+                Join Community
+              </button>
+            )}
             <p className="text-center text-[12px] text-sand-700 font-medium mt-4">
               Secure checkout. 90-day money-back guarantee.
             </p>

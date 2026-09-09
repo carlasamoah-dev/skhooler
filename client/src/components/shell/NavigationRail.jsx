@@ -6,22 +6,8 @@ import { Compass } from "lucide-react";
 import { useSessionStore } from "@/store/useSessionStore";
 import { Avatar } from "@/components/ui";
 
-// Mock joined communities for the rail
-const MOCK_JOINED_COMMUNITIES = [
-  {
-    slug: "remote-jobs-hq",
-    name: "Remote Jobs HQ",
-    iconUrl: "https://images.unsplash.com/photo-1541364983171-a8ba01e95cfc?w=128&h=128&fit=crop",
-  },
-  {
-    slug: "maker-school",
-    name: "Maker School",
-    iconUrl: null, // Will fallback to 'M'
-  }
-];
-
 export default function NavigationRail() {
-  const user = useSessionStore((s) => s.user);
+  const { user, communities } = useSessionStore();
   const pathname = usePathname();
 
   if (!user) return null;
@@ -35,8 +21,8 @@ export default function NavigationRail() {
         href="/discover"
         className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all ${
           isDiscover 
-            ? "bg-zinc-200 text-ink shadow-inner" 
-            : "bg-surface text-sand-500 hover:bg-zinc-100 hover:text-ink"
+            ? "bg-sand-200 text-ink shadow-inner" 
+            : "bg-surface text-sand-500 hover:bg-sand-100 hover:text-ink"
         }`}
         title="Discover"
       >
@@ -46,7 +32,7 @@ export default function NavigationRail() {
       <div className="w-8 h-[2px] bg-divider rounded-full my-1" />
 
       {/* Communities */}
-      {MOCK_JOINED_COMMUNITIES.map((community) => {
+      {communities.map((community) => {
         const isActive = pathname.startsWith(`/${community.slug}`);
         return (
           <Link

@@ -4,10 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
-import { ArrowLeft, Link2, MousePointerClick, Paperclip, SquareChartGantt, Video } from "lucide-react";
+import { ArrowLeft, Link2, Lock, MousePointerClick, Paperclip, SquareChartGantt, Video } from "lucide-react";
 
 import { createPost } from "@/lib/api";
 import { formatCount } from "@/lib/format";
+import { useCan } from "@/lib/permissions";
 import { useGroupStore } from "@/store/useGroupStore";
 import { Button, Card, Checkbox, Input, Kicker, Select, Textarea } from "@/components/ui";
 
@@ -21,6 +22,7 @@ const ATTACHMENTS = [
 
 export default function PostComposer() {
   const router = useRouter();
+  const can = useCan();
   const { slug, group, categories, user, membership } = useGroupStore();
   const [formError, setFormError] = useState(null);
 
@@ -33,6 +35,24 @@ export default function PostComposer() {
 
   const memberCount = group?.stats?.memberCount ?? 0;
   const role = (membership?.role ?? "").toLowerCase();
+
+  // Members cannot create posts — show a clear message instead of the form.
+  if (!can("post:create")) {
+    return (
+      <div className="max-w-[680px] mx-auto flex flex-col items-center justify-center py-20 text-center">
+        <div className="w-16 h-16 rounded-full bg-sand-100 flex items-center justify-center mb-4">
+          <Lock className="w-7 h-7 text-sand-400" />
+        </div>
+        <h2 className="text-xl font-display font-extrabold text-ink mb-2">Members can't create posts</h2>
+        <p className="text-sand-600 max-w-sm mb-6">
+          Only Moderators, Admins, and the Owner can publish posts in this community.
+        </p>
+        <Link href={`/${slug}/community`} className="btn btn-primary no-underline">
+          Back to Feed
+        </Link>
+      </div>
+    );
+  }
 
   const onSubmit = async (values) => {
     setFormError(null);

@@ -14,7 +14,6 @@ function mockAuthCall(mode, values) {
 export const COPY = {
   login: {
     title: "Log in",
-    sub: "Welcome back to Remote Jobs HQ.",
     cta: "Log in",
     footer: "New to Skhooler?",
     switchLabel: "Create an account",
@@ -22,7 +21,6 @@ export const COPY = {
   },
   signup: {
     title: "Create your account",
-    sub: "Join Remote Jobs HQ — free.",
     cta: "Create account",
     footer: "Already have an account?",
     switchLabel: "Log in",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Lock } from "lucide-react";
 
 import { fetchAnalyticsGrowth, fetchAnalyticsOverview, fetchAnalyticsSources } from "@/lib/api";
 import { formatCount } from "@/lib/format";
@@ -13,6 +14,7 @@ import StatCard from "./StatCard";
 export default function DashboardClient() {
   const can = useCan();
   const showRevenue = can("analytics:revenue");
+  const canViewDash = can("analytics:view");
 
   const [overview, setOverview] = useState(null);
   const [growth, setGrowth] = useState(null);
@@ -20,6 +22,7 @@ export default function DashboardClient() {
   const [loadingGrowth, setLoadingGrowth] = useState(false);
 
   useEffect(() => {
+    if (!canViewDash) return;
     let cancelled = false;
     fetchAnalyticsOverview().then((o) => !cancelled && setOverview(o));
     fetchAnalyticsGrowth("week").then((g) => !cancelled && setGrowth(g));
@@ -27,7 +30,22 @@ export default function DashboardClient() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [canViewDash]);
+
+  // Members and Moderators cannot view the dashboard
+  if (!canViewDash) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="w-16 h-16 rounded-full bg-sand-100 flex items-center justify-center mb-4">
+          <Lock className="w-7 h-7 text-sand-400" />
+        </div>
+        <h2 className="text-xl font-display font-extrabold text-ink mb-2">Dashboard is for Admins only</h2>
+        <p className="text-sand-600 max-w-sm">
+          Only Admins and the Owner can view community analytics.
+        </p>
+      </div>
+    );
+  }
 
   const changeInterval = async (interval) => {
     setLoadingGrowth(true);

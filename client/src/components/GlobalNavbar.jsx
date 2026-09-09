@@ -19,46 +19,49 @@ export default function GlobalNavbar() {
   const userName = user ? `${user.firstName} ${user.lastName}` : "";
 
   return (
-    <nav className="sticky top-0 z-50 w-full h-[64px] bg-white border-b border-zinc-200 flex items-center justify-between px-6">
+    <nav className="sticky top-0 z-50 w-full h-[64px] bg-surface border-b border-divider flex items-center justify-between px-6">
       <div className="flex items-center gap-10">
-        <Link href="/discover" className="text-xl font-extrabold tracking-tight text-zinc-900 hover:opacity-80 transition-opacity">
+        <Link href="/discover" className="font-display font-extrabold text-xl text-ink tracking-tight hover:opacity-80 transition-opacity no-underline">
           skhooler
         </Link>
 
-        {/* Integrated Search Bar */}
-        <div className="hidden md:flex relative w-[320px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+        {/* Search Bar */}
+        <div className="hidden md:flex relative w-[300px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sand-500" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search communities..."
             aria-label="Search communities"
-            className="w-full h-9 pl-9 pr-4 bg-zinc-100 border border-transparent rounded-lg focus:bg-white focus:border-zinc-300 focus:outline-none focus:ring-4 focus:ring-zinc-100 transition-all text-[14px]"
+            className="w-full h-9 pl-9 pr-4 bg-sand-100 border border-transparent rounded-lg focus:bg-ground focus:border-divider focus:outline-none transition-all text-[14px] text-ink placeholder:text-sand-500"
             suppressHydrationWarning
           />
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         {user ? (
           <>
-            <IconButton
-              icon={Bell}
-              label="Notifications"
-              badge={0}
-              onClick={toggleNotifications}
-            />
-            <Avatar name={userName} src={user.avatarUrl} size={36} />
-            <IconButton icon={LogOut} label="Log out" variant="plain" size={36} onClick={signOut} />
+            <Link
+              href="/create"
+              className="hidden md:inline-flex items-center h-8 px-4 text-[13px] font-bold text-ink border border-divider rounded-lg hover:bg-sand-100 transition-colors no-underline"
+            >
+              + Create
+            </Link>
+            <IconButton icon={Bell} label="Notifications" badge={0} onClick={toggleNotifications} />
+            <Link href="/account" className="flex shrink-0">
+              <Avatar name={userName} src={user.avatarUrl} size={34} />
+            </Link>
+            <IconButton icon={LogOut} label="Log out" variant="plain" size={34} onClick={signOut} />
           </>
         ) : (
           <button
             onClick={() => openModal("login")}
-            className="text-[14px] font-semibold text-zinc-600 hover:text-zinc-900 transition-colors"
+            className="btn btn-primary text-[13px]"
             suppressHydrationWarning
           >
-            Sign in
+            Log in
           </button>
         )}
       </div>

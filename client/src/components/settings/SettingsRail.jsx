@@ -6,7 +6,9 @@ import { SegmentedControl } from "@/components/ui";
 
 export const TABS = [
   { value: "general", label: "General" },
+  { value: "discovery", label: "Discovery" },
   { value: "pricing", label: "Pricing & tiers" },
+  { value: "billing", label: "Billing" },
   { value: "categories", label: "Categories" },
   { value: "questions", label: "Join questions" },
   { value: "notifications", label: "Notifications" },

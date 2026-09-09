@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { flagEmoji, relativeTime } from "@/lib/format";
+import { useGroupStore } from "@/store/useGroupStore";
 import { Avatar, Button, Card, StatusDot } from "@/components/ui";
 
 const ROLE = {
@@ -11,6 +13,7 @@ const ROLE = {
 };
 
 export default function MemberRow({ member, onOpenMembership }) {
+  const { slug } = useGroupStore();
   const { user } = member;
   const name = `${user.firstName} ${user.lastName}`;
   const role = ROLE[member.role] ?? ROLE.MEMBER;
@@ -24,15 +27,19 @@ export default function MemberRow({ member, onOpenMembership }) {
       className="min-h-[88px] px-6 py-[18px] grid items-center gap-[18px] grid-cols-1 lg:grid-cols-[52px_minmax(0,230px)_minmax(0,1.2fr)_minmax(0,176px)_auto]"
     >
       {/* The badge is anchored to the avatar, so it sits identically on every row. */}
-      <Avatar
-        name={name}
-        src={user.avatarUrl ?? undefined}
-        size={52}
-        presence={member.isOnline ? "online" : "offline"}
-      />
+      <Link href={`/${slug}/members/${member.id}`} className="no-underline">
+        <Avatar
+          name={name}
+          src={user.avatarUrl ?? undefined}
+          size={52}
+          presence={member.isOnline ? "online" : "offline"}
+        />
+      </Link>
 
       <div className="min-w-0">
-        <p className="font-display font-extrabold text-lg tracking-[-0.02em] truncate">{name}</p>
+        <Link href={`/${slug}/members/${member.id}`} className="no-underline hover:underline">
+          <p className="font-display font-extrabold text-lg tracking-[-0.02em] truncate text-ink">{name}</p>
+        </Link>
         <StatusDot tone={role.tone} label={role.label} />
         <p className="text-meta text-sand-700 truncate">
           {`${flagEmoji(user.countryCode)} ${user.countryCode} @${user.handle}`}

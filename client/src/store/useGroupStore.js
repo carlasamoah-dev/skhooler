@@ -33,4 +33,14 @@ export const useGroupStore = create((set, get) => ({
       set({ status: "error", error: error?.message ?? "Could not load this group." });
     }
   },
+
+  /**
+   * Call this after a successful role-change mutation so every useCan() hook
+   * re-evaluates immediately without requiring a page reload.
+   */
+  updateMembershipRole(newRole) {
+    const { membership } = get();
+    if (!membership) return;
+    set({ membership: { ...membership, role: newRole } });
+  },
 }));

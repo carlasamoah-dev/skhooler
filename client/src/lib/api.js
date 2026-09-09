@@ -164,6 +164,7 @@ export function createPost(payload) {
     likeCount: 0,
     commentCount: 0,
     hasLiked: false,
+    commentsEnabled: true,
     lastCommentAt: null,
     createdAt: new Date().toISOString(),
     poll: null,
@@ -172,6 +173,27 @@ export function createPost(payload) {
   posts.unshift(post);
   return resolve(post);
 }
+
+export function deletePost(postId) {
+  const index = posts.findIndex((p) => p.id === postId);
+  if (index !== -1) posts.splice(index, 1);
+  return resolve({ ok: true });
+}
+
+export function togglePostComments(postId) {
+  const post = posts.find((p) => p.id === postId);
+  if (!post) return Promise.reject(new Error("Post not found"));
+  post.commentsEnabled = !post.commentsEnabled;
+  return resolve({ commentsEnabled: post.commentsEnabled });
+}
+
+export function updatePost(postId, payload) {
+  const post = posts.find((p) => p.id === postId);
+  if (!post) return Promise.reject(new Error("Post not found"));
+  Object.assign(post, payload);
+  return resolve(post);
+}
+
 
 /* ------------------------------- sidebar --------------------------------- */
 
@@ -221,6 +243,27 @@ export function fetchCourses() {
   return resolve(courses);
 }
 
+export function createCourse(payload) {
+  const newCourse = {
+    id: `course-${Date.now()}`,
+    ...payload,
+    isPublished: false,
+    moduleCount: 0,
+    lessonCount: 0,
+    progressPercent: 0,
+    modules: [],
+  };
+  courses.unshift(newCourse);
+  return resolve(newCourse);
+}
+
+export function updateCourse(courseId, payload) {
+  const index = courses.findIndex(c => c.id === courseId);
+  if (index === -1) return Promise.reject(new Error("Course not found"));
+  courses[index] = { ...courses[index], ...payload };
+  return resolve(courses[index]);
+}
+
 /**
  * Only one course carries a module tree in the seed data. The others resolve
  * with `modules: null`, which the classroom surfaces rather than faking.
@@ -228,6 +271,10 @@ export function fetchCourses() {
 export function fetchCourse(courseSlug) {
   const course = courses.find((c) => c.slug === courseSlug);
   if (!course) return Promise.reject(new Error("That course no longer exists."));
+  
+  // If it was created dynamically during this session, it has modules: []
+  if (course.modules !== undefined) return resolve(course);
+  
   if (course.slug !== courseDetail.slug) return resolve({ ...course, modules: null });
   return resolve({ ...course, modules: courseDetail.modules });
 }
@@ -499,8 +546,42 @@ export function fetchMembers({ role = "all" } = {}) {
 }
 
 export function fetchMemberProfile(memberId) {
-  const member = members.find((m) => m.id === memberId);
-  return member ? resolve(member) : Promise.reject(new Error("That member is no longer in the group."));
+  const member = mocks.members.find((m) => m.id === memberId);
+  if (!member) return Promise.reject(new Error("That member no longer exists."));
+  
+  // They authored every post in the mock.
+  return resolve({ ...member, recentPosts: mocks.posts });
+}
+
+export function fetchUserProfile(username) {
+  // If it's the current user's mock username, return the me() data plus mock communities
+  if (username === "jonathan-ndayele") {
+    return resolve({
+      id: "mock-1",
+      firstName: "Jonathan",
+      lastName: "Ndayele",
+      username: "jonathan-ndayele",
+      location: "Accra, Ghana",
+      email: "jonathan@skhooler.com", // Including email per user request
+      avatarUrl: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=64&h=64&fit=crop",
+      createdCommunities: [
+        { slug: "remote-jobs-hq", name: "Remote Jobs HQ", iconUrl: "https://images.unsplash.com/photo-1541364983171-a8ba01e95cfc?w=128&h=128&fit=crop" },
+        { slug: "maker-school", name: "Maker School", iconUrl: null }
+      ]
+    });
+  }
+  
+  // Otherwise, fallback generic user
+  return resolve({
+    id: `mock-${username}`,
+    firstName: "Demo",
+    lastName: "User",
+    username: username,
+    location: "Unknown",
+    email: `${username}@skhooler.com`,
+    avatarUrl: null,
+    createdCommunities: []
+  });
 }
 
 export function changeMemberRole(memberId, role) {

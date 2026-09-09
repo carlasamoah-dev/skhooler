@@ -108,7 +108,7 @@ export default function MembersClient() {
             {`${formatCount(counts.all ?? 0)} members · ${counts.pendingRequests ?? 0} requests`}
           </p>
         </div>
-        {can("member:role") ? (
+        {can("member:approve") ? (
           <Link href={`/${slug}/settings/invites`} className="btn btn-primary ml-auto no-underline">
             Invite people
           </Link>

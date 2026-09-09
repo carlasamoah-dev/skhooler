@@ -4,6 +4,8 @@ import { useState } from "react";
 
 import { changeMemberRole, changeMemberTier, removeMember, setCourseAccess } from "@/lib/api";
 import { flagEmoji, relativeTime } from "@/lib/format";
+import { useCan } from "@/lib/permissions";
+import { useGroupStore } from "@/store/useGroupStore";
 import { Avatar, Button, Checkbox, Dialog, Select } from "@/components/ui";
 
 const ROLES = [
@@ -23,12 +25,17 @@ function Well({ label, children, action }) {
 }
 
 export default function MembershipDialog({ open, member, tiers = [], courses = [], onClose, onChanged }) {
+  const can = useCan();
+  const { membership, updateMembershipRole } = useGroupStore();
   const [role, setRole] = useState(member?.role ?? "MEMBER");
   const [tierId, setTierId] = useState(member?.tier?.id ?? "");
   const [access, setAccess] = useState(() => new Set(member?.courseAccess ?? []));
   const [busy, setBusy] = useState(false);
 
   if (!open || !member) return null;
+
+  const canChangeRole = can("member:role");
+  const canRemove = can("member:remove");
 
   const { user } = member;
   const name = `${user.firstName} ${user.lastName}`;
@@ -41,7 +48,14 @@ export default function MembershipDialog({ open, member, tiers = [], courses = [
   const save = async () => {
     setBusy(true);
     try {
-      if (role !== member.role) await changeMemberRole(member.id, role);
+      if (canChangeRole && role !== member.role) {
+        await changeMemberRole(member.id, role);
+        // If this is the current user's own membership, update the store
+        // so all role gates re-evaluate instantly everywhere.
+        if (member.id === membership?.id || user.id === membership?.userId) {
+          updateMembershipRole(role);
+        }
+      }
       if ((tierId || null) !== (member.tier?.id ?? null)) await changeMemberTier(member.id, tierId || null);
       for (const course of courses) {
         const had = (member.courseAccess ?? []).includes(course.id);
@@ -69,9 +83,14 @@ export default function MembershipDialog({ open, member, tiers = [], courses = [
         <Well label="Email">{user.email}</Well>
         <Well label="Joined">{`${joined} · ${member.joinedVia}`}</Well>
 
+        {/* Role — only Admins/Owners can change roles */}
         <Well
           label="Role"
-          action={<Select aria-label="Change role" size="sm" options={ROLES} value={role} onChange={setRole} />}
+          action={
+            canChangeRole ? (
+              <Select aria-label="Change role" size="sm" options={ROLES} value={role} onChange={setRole} />
+            ) : null
+          }
         >
           {ROLES.find((r) => r.value === role)?.label ?? role}
         </Well>
@@ -122,16 +141,18 @@ export default function MembershipDialog({ open, member, tiers = [], courses = [
       ) : null}
 
       <div className="mt-7 flex flex-wrap items-center gap-3">
-        <Button
-          variant="secondary"
-          onClick={async () => {
-            await removeMember(member.id);
-            await onChanged?.();
-            onClose?.();
-          }}
-        >
-          Remove from group
-        </Button>
+        {canRemove ? (
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              await removeMember(member.id);
+              await onChanged?.();
+              onClose?.();
+            }}
+          >
+            Remove from group
+          </Button>
+        ) : null}
         <Button className="ml-auto" loading={busy} onClick={save}>
           Save
         </Button>

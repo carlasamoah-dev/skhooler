@@ -13,6 +13,8 @@ import InvitesPanel from "./InvitesPanel";
 import JoinQuestionsPanel from "./JoinQuestionsPanel";
 import NotificationsPanel from "./NotificationsPanel";
 import PricingPanel from "./PricingPanel";
+import DiscoveryPanel from "./DiscoveryPanel";
+import BillingPanel from "./BillingPanel";
 import SettingsRail, { TABS } from "./SettingsRail";
 
 export default function SettingsClient({ tab }) {
@@ -21,8 +23,6 @@ export default function SettingsClient({ tab }) {
   const [data, setData] = useState(null);
   const [reloadToken, setReloadToken] = useState(0);
 
-  // A settings write can change what the shell and the feed show — the group
-  // name, the category order — so refresh the group context alongside.
   const reload = useCallback(() => {
     setReloadToken((t) => t + 1);
     useGroupStore.getState().hydrate(slug, { force: true });
@@ -38,13 +38,13 @@ export default function SettingsClient({ tab }) {
     };
   }, [slug, mayEdit, reloadToken]);
 
-  // Every panel here is the owner's.
+  // Members and Moderators cannot access Settings
   if (!mayEdit) {
     return (
       <EmptyState
         icon={Lock}
-        title="Settings are for the group owner"
-        body="Ask the owner if something here needs changing."
+        title="Settings are for Admins and Owners"
+        body="Only Admins and the Owner can access community settings."
       />
     );
   }
@@ -60,8 +60,21 @@ export default function SettingsClient({ tab }) {
           <Skeleton variant="card" className="h-[420px]" />
         ) : active === "general" ? (
           <GeneralPanel group={data.group} onSaved={reload} />
+        ) : active === "discovery" ? (
+          <DiscoveryPanel group={data.group} onSaved={reload} />
         ) : active === "pricing" ? (
           <PricingPanel group={data.group} tiers={data.tiers} onTiers={reload} onSaved={reload} />
+        ) : active === "billing" ? (
+          // Billing is Owner-only even within Settings
+          can("billing:view") ? (
+            <BillingPanel group={data.group} />
+          ) : (
+            <EmptyState
+              icon={Lock}
+              title="Billing is for the Owner only"
+              body="Contact the community owner to manage billing details."
+            />
+          )
         ) : active === "categories" ? (
           <CategoriesPanel
             key={data.categories.map((c) => c.id).join()}
