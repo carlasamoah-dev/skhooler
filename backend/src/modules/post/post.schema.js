@@ -9,6 +9,7 @@ export const createPostSchema = z.object({
   content: z.string().min(1).max(50000),
   categoryId: z.string().uuid().optional().nullable(),
   isPinned: z.boolean().optional().default(false),
+  commentsEnabled: z.boolean().optional().default(true),
   isEmailBroadcast: z.boolean().optional().default(false),
   actionButtonText: z.string().max(100).optional().nullable(),
   actionButtonUrl: z.string().url().max(2000).optional().nullable(),
@@ -20,6 +21,7 @@ export const createPostSchema = z.object({
   }).optional().nullable(),
   videoAssetId: z.string().max(100).optional().nullable(),
   videoPlaybackId: z.string().max(100).optional().nullable(),
+  videoUrl: z.string().url().max(2000).optional().nullable(),
   attachments: z.array(
     z.object({
       name: z.string(),
@@ -42,7 +44,8 @@ export const postsQuerySchema = z.object({
   cursor: z.string().optional(),
   limit: z.coerce.number().min(1).max(50).default(20),
   categoryId: z.string().uuid().optional(),
-  search: z.string().optional()
+  search: z.string().optional(),
+  sort: z.enum(['new', 'likes', 'comments']).optional().default('new')
 });
 
 export const pollVoteSchema = z.object({

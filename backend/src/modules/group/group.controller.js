@@ -6,6 +6,18 @@ import { sendSuccess } from '../../utils/apiResponse.js'
 import { groupService } from './group.service.js'
 
 /**
+ * Public discovery endpoint — list ranked public groups with filtering
+ */
+export async function discoverGroups(req, res, next) {
+  try {
+    const result = await groupService.discoverGroups(req.query)
+    sendSuccess(res, result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
  * Create a new group
  */
 export async function createGroup(req, res, next) {

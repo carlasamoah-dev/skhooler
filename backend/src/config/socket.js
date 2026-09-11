@@ -73,6 +73,16 @@ export function setupSocket(httpServer) {
       socket.leave(`group:${groupId}`);
     });
 
+    socket.on('typing', ({ groupId, postId, parentCommentId, name, isTyping }) => {
+      socket.to(`group:${groupId}`).emit('user:typing', {
+        userId: socket.user.id,
+        name,
+        postId,
+        parentCommentId,
+        isTyping
+      });
+    });
+
     socket.on('disconnect', () => {
       clearInterval(rateLimitInterval);
       logger.info({ userId, socketId: socket.id }, 'User disconnected via Socket.io');

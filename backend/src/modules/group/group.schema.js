@@ -5,7 +5,19 @@ export const createGroupSchema = z.object({
   name: z.string().trim().min(2).max(100),
   description: z.string().trim().max(2000).optional(),
   visibility: z.enum(['PUBLIC', 'PRIVATE']).default('PUBLIC'),
-})
+  tags: z.array(z.string().trim().min(1).max(50)).max(10).optional().default([]),
+  // Branding (optional — set during wizard)
+  iconUrl: z.string().url().nullable().optional(),
+  coverUrl: z.string().url().nullable().optional(),
+  // Pricing (optional — defaults to FREE)
+  pricingModel: z.enum(['FREE', 'PAID']).default('FREE'),
+  price: z.number().positive().max(9999.99).nullable().optional(),
+  billingInterval: z.enum(['MONTHLY', 'YEARLY']).nullable().optional(),
+  trialDays: z.number().int().min(0).max(90).optional().default(0),
+}).refine(data => {
+  if (data.pricingModel === 'PAID' && (!data.price || !data.billingInterval)) return false
+  return true
+}, { message: 'Paid groups require price and billing interval' })
 
 // Group update
 export const updateGroupSchema = z.object({
@@ -16,6 +28,10 @@ export const updateGroupSchema = z.object({
   visibility: z.enum(['PUBLIC', 'PRIVATE']),
   joinApproval: z.enum(['AUTOMATIC', 'MANUAL']),
   autoWelcomeMessage: z.string().trim().max(1000).nullable(),
+  tags: z.array(z.string().trim().min(1).max(50)).max(10).nullable(),
+  iconUrl: z.string().url().nullable().optional(),
+  coverUrl: z.string().url().nullable().optional(),
+  slug: z.string().trim().min(2).max(100).regex(/^[a-z0-9-]+$/i, 'Slugs can only contain letters, numbers, and hyphens').optional(),
 }).partial()
 
 // Group pricing
@@ -110,4 +126,13 @@ export const membersQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
   role: z.enum(['OWNER', 'ADMIN', 'MODERATOR', 'MEMBER']).optional(),
   search: z.string().trim().max(100).optional(),
+})
+
+// Discovery query
+export const discoverQuerySchema = z.object({
+  q: z.string().trim().max(200).optional(),
+  tag: z.string().trim().max(50).optional(),
+  pricing: z.enum(['FREE', 'PAID']).optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(50).optional().default(9),
 })

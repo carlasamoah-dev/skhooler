@@ -15,11 +15,11 @@ export default function NavigationRail() {
   const isDiscover = pathname.startsWith("/discover");
 
   return (
-    <aside className="w-[72px] shrink-0 bg-surface border-r border-divider h-screen flex flex-col items-center py-4 gap-3 z-50">
+    <aside className="fixed bottom-0 left-0 right-0 h-16 md:h-screen md:static md:w-[72px] shrink-0 bg-surface border-t md:border-t-0 md:border-r border-divider flex flex-row md:flex-col items-center justify-center md:justify-start px-4 py-0 md:py-4 md:px-0 gap-3 md:gap-3 z-50 overflow-x-auto md:overflow-y-auto overflow-y-hidden md:overflow-x-hidden">
       {/* Discover Button */}
       <Link
         href="/discover"
-        className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all ${
+        className={`shrink-0 w-12 h-12 flex items-center justify-center rounded-2xl transition-all ${
           isDiscover 
             ? "bg-sand-200 text-ink shadow-inner" 
             : "bg-surface text-sand-500 hover:bg-sand-100 hover:text-ink"
@@ -29,7 +29,7 @@ export default function NavigationRail() {
         <Compass className="w-6 h-6 stroke-[2px]" />
       </Link>
 
-      <div className="w-8 h-[2px] bg-divider rounded-full my-1" />
+      <div className="w-[2px] h-8 md:w-8 md:h-[2px] bg-divider rounded-full mx-1 md:mx-0 md:my-1 shrink-0" />
 
       {/* Communities */}
       {communities.map((community) => {

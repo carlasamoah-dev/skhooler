@@ -6,10 +6,15 @@ import { cn } from "@/lib/cn";
 import { relativeTime } from "@/lib/format";
 import { Avatar } from "@/components/ui";
 import CommentComposer from "./CommentComposer";
+import { useGroupStore } from "@/store/useGroupStore";
+import { useSocketStore } from "@/store/useSocketStore";
 
-function Comment({ comment, tinted, isReply, user, onLike, onReply }) {
+function Comment({ comment, tinted, isReply, user, onLike, onReply, typingUsers = [], postId }) {
   const [replying, setReplying] = useState(false);
   const name = `${comment.author.firstName} ${comment.author.lastName}`;
+
+  // Find who is typing on this specific comment
+  const typists = typingUsers.filter(u => u.parentCommentId === comment.id);
 
   return (
     <li className={cn(isReply && "ml-11")}>
@@ -52,6 +57,11 @@ function Comment({ comment, tinted, isReply, user, onLike, onReply }) {
             user={user}
             size={32}
             placeholder={`Reply to ${comment.author.firstName}…`}
+            onTyping={(isTyping) => {
+              const groupId = useGroupStore.getState().group?.id;
+              const typistName = user ? `${user.firstName} ${user.lastName}` : "Someone";
+              useSocketStore.getState().emitTyping(groupId, postId, comment.id, typistName, isTyping);
+            }}
             onSubmit={async (content) => {
               await onReply?.(content, comment.id);
               setReplying(false);
@@ -59,11 +69,23 @@ function Comment({ comment, tinted, isReply, user, onLike, onReply }) {
           />
         </div>
       ) : null}
+
+      {/* Reply Typing Indicator */}
+      {!isReply && typists.length > 0 && (
+        <div className="mt-2 ml-11 flex items-center gap-2 text-xs text-sand-500 animate-pulse">
+          <span className="flex gap-1">
+            <span className="w-1 h-1 bg-sand-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+            <span className="w-1 h-1 bg-sand-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+            <span className="w-1 h-1 bg-sand-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+          </span>
+          {typists.map(u => u.name).join(", ")} {typists.length === 1 ? "is" : "are"} typing a reply...
+        </div>
+      )}
     </li>
   );
 }
 
-export default function CommentThread({ comments = [], user, onLike, onReply }) {
+export default function CommentThread({ comments = [], user, onLike, onReply, typingUsers = [], postId }) {
   const roots = comments.filter((c) => !c.parentCommentId);
   const repliesOf = (id) => comments.filter((c) => c.parentCommentId === id);
 
@@ -79,9 +101,19 @@ export default function CommentThread({ comments = [], user, onLike, onReply }) 
               user={user}
               onLike={onLike}
               onReply={onReply}
+              typingUsers={typingUsers}
+              postId={postId}
             />
             {repliesOf(root.id).map((reply) => (
-              <Comment key={reply.id} comment={reply} tinted={row++ % 2 === 0} isReply user={user} onLike={onLike} />
+              <Comment 
+                key={reply.id} 
+                comment={reply} 
+                tinted={row++ % 2 === 0} 
+                isReply 
+                user={user} 
+                onLike={onLike} 
+                postId={postId}
+              />
             ))}
           </ul>
         </li>

@@ -57,7 +57,7 @@ export default function PostComposer() {
   const onSubmit = async (values) => {
     setFormError(null);
     try {
-      const post = await createPost({
+      const post = await createPost(slug, {
         title: values.title,
         content: values.content,
         categoryId: values.categoryId || null,

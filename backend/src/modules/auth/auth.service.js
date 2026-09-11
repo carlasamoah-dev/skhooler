@@ -75,16 +75,16 @@ class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedError('Invalid credentials');
+      throw new UnauthorizedError('No account found with that email address. Please check your email or sign up.');
     }
 
     const isPasswordValid = await comparePassword(password, user.passwordHash);
     if (!isPasswordValid) {
-      throw new UnauthorizedError('Invalid credentials');
+      throw new UnauthorizedError('Incorrect password. Please try again or reset your password.');
     }
 
     if (!user.isEmailVerified) {
-      throw new UnauthorizedError('Please verify your email first');
+      throw new UnauthorizedError('Your email address has not been verified yet. Please check your inbox for the verification link.');
     }
 
     await prisma.user.update({
@@ -326,6 +326,13 @@ class AuthService {
         bio: true,
         isEmailVerified: true,
         createdAt: true,
+        groupMemberships: {
+          include: {
+            group: {
+              select: { slug: true, name: true, iconUrl: true }
+            }
+          }
+        },
       },
     });
 

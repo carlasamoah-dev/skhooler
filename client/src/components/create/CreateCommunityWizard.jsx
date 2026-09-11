@@ -259,7 +259,7 @@ function StepReview() {
 /* ─── Main Wizard ─── */
 export default function CreateCommunityWizard() {
   const router = useRouter();
-  const { step, totalSteps, name, pricingModel, price, status, nextStep, prevStep, launch, reset } = useCreateStore();
+  const { step, totalSteps, name, pricingModel, price, status, error, nextStep, prevStep, launch, reset } = useCreateStore();
 
   const stepValid = () => {
     if (step === 1) return name.trim().length >= 2;
@@ -271,9 +271,13 @@ export default function CreateCommunityWizard() {
     if (step < totalSteps) {
       nextStep();
     } else {
-      const slug = await launch();
-      reset();
-      router.push(`/${slug}/community`);
+      try {
+        const slug = await launch();
+        reset();
+        router.push(`/${slug}/community`);
+      } catch {
+        // error is already stored in useCreateStore.error — shown below the button
+      }
     }
   };
 
@@ -341,8 +345,15 @@ export default function CreateCommunityWizard() {
                 <>Launch community 🚀</>
               )}
             </button>
+            </div>
+
+            {/* Launch error */}
+            {status === "error" && error && (
+              <p className="mt-4 text-[13px] text-alert text-center bg-brand-50 border border-brand/20 rounded-lg px-4 py-3">
+                {error}
+              </p>
+            )}
           </div>
-        </div>
       </div>
     </div>
   );

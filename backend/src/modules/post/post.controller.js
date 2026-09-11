@@ -107,6 +107,26 @@ export async function togglePin(req, res, next) {
 }
 
 /**
+ * Toggle comments status of a post
+ * @param {import('express').Request} req 
+ * @param {import('express').Response} res 
+ * @param {import('express').NextFunction} next 
+ */
+export async function toggleComments(req, res, next) {
+  try {
+    const post = await postService.toggleComments(
+      req.group.id, 
+      req.params.postId, 
+      req.user.id,
+      req.membership?.role
+    )
+    return sendSuccess(res, post)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
  * Toggle like on a post
  * @param {import('express').Request} req 
  * @param {import('express').Response} res 

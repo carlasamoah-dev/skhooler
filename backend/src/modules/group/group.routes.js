@@ -13,6 +13,9 @@ import * as schemas from './group.schema.js'
 
 const router = Router()
 
+// ──── Discovery (public, no auth) ────
+router.get('/', validateQuery(schemas.discoverQuerySchema), groupController.discoverGroups)
+
 // ──── Group CRUD ────
 router.post('/', authenticate, validateBody(schemas.createGroupSchema), groupController.createGroup)
 router.get('/:slug', authenticate, loadGroup, requireMembership(), groupController.getGroup)

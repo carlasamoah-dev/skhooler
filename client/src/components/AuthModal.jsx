@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 
 import { useAuthModalStore } from "@/store/useAuthModalStore";
 import { useGroupStore } from "@/store/useGroupStore";
+import { useSessionStore } from "@/store/useSessionStore";
 import { Dialog, IconButton } from "@/components/ui";
 import AuthBrand from "./auth/AuthBrand";
 import AuthForm, { COPY } from "./auth/AuthForm";
@@ -36,9 +37,11 @@ export default function AuthModal() {
       <AuthForm
         mode={mode}
         onSwitch={openModal}
-        onSuccess={() => {
+        onSuccess={async () => {
+          await useSessionStore.getState().bootstrap();
           closeModal();
-          router.push(`/${slug ?? "remote-jobs-hq"}/community`);
+          const next = new URLSearchParams(window.location.search).get("next");
+          router.push(next || `/home`);
         }}
       />
     </Dialog>

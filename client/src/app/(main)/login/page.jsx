@@ -7,15 +7,21 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AuthForm, { COPY } from "@/components/auth/AuthForm";
 import AuthPageShell from "@/components/auth/AuthPageShell";
 
+import { useSessionStore } from "@/store/useSessionStore";
+
 /** Split out so `useSearchParams` has a Suspense boundary to bail out to. */
 function LoginForm() {
   const router = useRouter();
   const next = useSearchParams().get("next");
+  const bootstrap = useSessionStore((s) => s.bootstrap);
 
   return (
     <AuthForm
       mode="login"
-      onSuccess={() => router.push(next || "/remote-jobs-hq/community")}
+      onSuccess={async () => {
+        await bootstrap();
+        router.push(next || "/home");
+      }}
       switchAs={
         <Link href="/signup" className="btn btn-ghost">
           Create an account

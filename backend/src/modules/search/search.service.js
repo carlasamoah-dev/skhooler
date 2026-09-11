@@ -135,7 +135,7 @@ class SearchService {
   async globalSearch({ q, limit = 10 }) {
     const groups = await prisma.group.findMany({
       where: {
-        isPublic: true,
+        visibility: 'PUBLIC',
         deletedAt: null,
         OR: [
           { name: { contains: q, mode: 'insensitive' } },
@@ -144,6 +144,18 @@ class SearchService {
         ],
       },
       take: limit,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        iconUrl: true,
+        coverUrl: true,
+        pricingModel: true,
+        price: true,
+        memberCount: true,
+        tags: true,
+      },
     });
     return {
       query: q,

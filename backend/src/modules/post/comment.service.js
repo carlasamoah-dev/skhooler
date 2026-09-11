@@ -26,6 +26,10 @@ export const commentService = {
       throw new NotFoundError('Post not found')
     }
 
+    if (post.commentsEnabled === false) {
+      throw new ForbiddenError('Comments are disabled for this post')
+    }
+
     if (parentCommentId) {
       const parent = await prisma.comment.findUnique({
         where: { id: parentCommentId, postId, deletedAt: null }
@@ -35,7 +39,7 @@ export const commentService = {
       }
     }
 
-    return await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const comment = await tx.comment.create({
         data: {
           content,
@@ -56,13 +60,24 @@ export const commentService = {
         }
       })
 
-      await tx.post.update({
+      const updatedPost = await tx.post.update({
         where: { id: postId },
-        data: { commentCount: { increment: 1 } }
+        data: { commentCount: { increment: 1 } },
+        select: { commentCount: true }
       })
 
-      return comment
+      return { comment, commentCount: updatedPost.commentCount }
     })
+
+    import('../../config/socket.js').then(({ getIO }) => {
+      getIO()?.to(`group:${groupId}`).emit('post:updated', {
+        postId,
+        patch: { commentCount: result.commentCount },
+        newComment: result.comment
+      });
+    }).catch(console.error);
+
+    return result.comment;
   },
 
   /**

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Lock } from "lucide-react";
+import { AlertCircle, Lock } from "lucide-react";
 
 import { fetchSettings } from "@/lib/api";
 import { useCan } from "@/lib/permissions";
@@ -21,6 +21,7 @@ export default function SettingsClient({ tab }) {
   const can = useCan();
   const slug = useGroupStore((s) => s.slug);
   const [data, setData] = useState(null);
+  const [loadError, setLoadError] = useState(null);
   const [reloadToken, setReloadToken] = useState(0);
 
   const reload = useCallback(() => {
@@ -32,7 +33,13 @@ export default function SettingsClient({ tab }) {
   useEffect(() => {
     if (!slug || !mayEdit) return undefined;
     let cancelled = false;
-    fetchSettings(slug).then((d) => !cancelled && setData(d));
+    fetchSettings(slug)
+      .then((d) => {
+        if (cancelled) return;
+        setLoadError(null);
+        setData(d);
+      })
+      .catch((error) => !cancelled && setLoadError(error));
     return () => {
       cancelled = true;
     };
@@ -45,6 +52,16 @@ export default function SettingsClient({ tab }) {
         icon={Lock}
         title="Settings are for Admins and Owners"
         body="Only Admins and the Owner can access community settings."
+      />
+    );
+  }
+
+  if (loadError) {
+    return (
+      <EmptyState
+        icon={AlertCircle}
+        title={loadError.message === "Invalid or expired token" ? "Your session has expired" : "Could not load settings"}
+        body="Please sign in again to continue managing this community."
       />
     );
   }
@@ -78,6 +95,7 @@ export default function SettingsClient({ tab }) {
         ) : active === "categories" ? (
           <CategoriesPanel
             key={data.categories.map((c) => c.id).join()}
+            slug={slug}
             categories={data.categories}
             onCategories={reload}
           />

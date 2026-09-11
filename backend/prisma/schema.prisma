@@ -231,6 +231,7 @@ model Group {
   iconUrl            String?           @map("icon_url") @db.Text
   coverUrl           String?           @map("cover_url") @db.Text
   galleryImages      String[]          @default([]) @map("gallery_images")
+  tags               String[]          @default([])
   visibility         GroupVisibility   @default(PUBLIC)
   pricingModel       GroupPricingModel @default(FREE) @map("pricing_model")
   price              Decimal?          @db.Decimal(10, 2)
@@ -466,6 +467,7 @@ model Post {
   title            String    @db.VarChar(255)
   content          String    @db.Text
   isPinned         Boolean   @default(false) @map("is_pinned")
+  commentsEnabled  Boolean   @default(true) @map("comments_enabled")
   pinnedAt         DateTime? @map("pinned_at") @db.Timestamptz()
   isEmailBroadcast Boolean   @default(false) @map("is_email_broadcast")
   broadcastSentAt  DateTime? @map("broadcast_sent_at") @db.Timestamptz()
@@ -474,6 +476,7 @@ model Post {
   linkPreview      Json?     @map("link_preview")
   videoAssetId     String?   @map("video_asset_id") @db.VarChar(100)
   videoPlaybackId  String?   @map("video_playback_id") @db.VarChar(100)
+  videoUrl         String?   @map("video_url") @db.Text
   attachments      Json?
   likeCount        Int       @default(0) @map("like_count")
   commentCount     Int       @default(0) @map("comment_count")

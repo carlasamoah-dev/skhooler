@@ -18,7 +18,7 @@ class CategoryService {
     let slug = generateSlug(name)
     
     // Check unique (groupId + slug)
-    let existing = await prisma.groupCategory.findUnique({
+    let existing = await prisma.category.findUnique({
       where: {
         groupId_slug: {
           groupId,
@@ -31,14 +31,14 @@ class CategoryService {
       slug = `${slug}-${Math.random().toString(36).substring(2, 8)}`
     }
 
-    const maxPositionCategory = await prisma.groupCategory.findFirst({
+    const maxPositionCategory = await prisma.category.findFirst({
       where: { groupId },
       orderBy: { position: 'desc' }
     })
 
     const position = maxPositionCategory ? maxPositionCategory.position + 1 : 1
 
-    const category = await prisma.groupCategory.create({
+    const category = await prisma.category.create({
       data: {
         name,
         slug,
@@ -56,7 +56,7 @@ class CategoryService {
    * @returns {Promise<Array>}
    */
   async getCategories(groupId) {
-    return prisma.groupCategory.findMany({
+    return prisma.category.findMany({
       where: { groupId },
       orderBy: { position: 'asc' }
     })
@@ -70,7 +70,7 @@ class CategoryService {
    * @returns {Promise<Object>}
    */
   async updateCategory(groupId, categoryId, data) {
-    const existing = await prisma.groupCategory.findFirst({
+    const existing = await prisma.category.findFirst({
       where: { id: categoryId, groupId }
     })
 
@@ -82,7 +82,7 @@ class CategoryService {
     if (data.name && data.name !== existing.name) {
       updateData.slug = generateSlug(data.name)
       // Check unique
-      const slugExists = await prisma.groupCategory.findUnique({
+      const slugExists = await prisma.category.findUnique({
         where: {
           groupId_slug: {
             groupId,
@@ -95,7 +95,7 @@ class CategoryService {
       }
     }
 
-    return prisma.groupCategory.update({
+    return prisma.category.update({
       where: { id: categoryId },
       data: updateData
     })
@@ -107,7 +107,7 @@ class CategoryService {
    * @param {string} categoryId 
    */
   async deleteCategory(groupId, categoryId) {
-    const existing = await prisma.groupCategory.findFirst({
+    const existing = await prisma.category.findFirst({
       where: { id: categoryId, groupId }
     })
 
@@ -115,7 +115,7 @@ class CategoryService {
       throw new NotFoundError('Category not found')
     }
 
-    await prisma.groupCategory.delete({
+    await prisma.category.delete({
       where: { id: categoryId }
     })
   }
@@ -127,7 +127,7 @@ class CategoryService {
    */
   async reorderCategories(groupId, orderedIds) {
     // Verify all IDs belong to this group
-    const existing = await prisma.groupCategory.findMany({
+    const existing = await prisma.category.findMany({
       where: {
         id: { in: orderedIds },
         groupId
@@ -140,7 +140,7 @@ class CategoryService {
 
     await prisma.$transaction(
       orderedIds.map((id, index) => 
-        prisma.groupCategory.update({
+        prisma.category.update({
           where: { id },
           data: { position: index }
         })

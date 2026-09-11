@@ -17,6 +17,7 @@ import billingRoutes from './modules/billing/billing.routes.js'
 import searchRoutes from './modules/search/search.routes.js'
 import integrationRoutes from './modules/integration/integration.routes.js'
 import { groupAnalyticsRoutes, adminAnalyticsRoutes } from './modules/analytics/analytics.routes.js'
+import uploadRoutes from './modules/upload/upload.routes.js'
 
 const app = express()
 
@@ -46,12 +47,14 @@ app.use('/api/groups', groupRoutes)
 app.use('/api/groups/:slug/posts', postRoutes)
 app.use('/api/groups/:slug/courses', courseRoutes)
 app.use('/api/groups/:slug/events', eventRoutes)
+app.use('/api/groups/search-global', searchRoutes)
 app.use('/api/groups/:slug/search', searchRoutes)
 app.use('/api/groups/:slug/integrations', integrationRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/billing', billingRoutes)
 app.use('/api/groups/:slug/analytics', groupAnalyticsRoutes)
 app.use('/api/admin/analytics', adminAnalyticsRoutes)
+app.use('/api/upload', uploadRoutes)
 
 // Error handling (must be last)
 app.use(notFoundHandler)

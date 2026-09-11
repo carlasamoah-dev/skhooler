@@ -5,7 +5,7 @@
 import { prisma } from '../../config/database.js';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../../utils/errors.js';
 import { encodeCursor, decodeCursor } from '../../utils/pagination.js';
-// import { emailQueue } from '../../jobs/queue.js';
+import { broadcastQueue } from '../../jobs/queue.js';
 
 class PostService {
   /**
@@ -83,8 +83,21 @@ class PostService {
     });
 
     if (isEmailBroadcast) {
-      // await emailQueue.add('broadcast', { postId: post.id, groupId });
+      // Add job to broadcast queue
+      await broadcastQueue.add('broadcast', { postId: post.id, groupId });
     }
+
+    import('../../config/socket.js').then(({ getIO }) => {
+      getIO()?.to(`group:${groupId}`).emit('post:created', {
+        post: {
+          ...post,
+          hasLiked: false,
+          userVotedOptionIds: [],
+          likeCount: 0,
+          commentCount: 0
+        }
+      });
+    }).catch(console.error);
 
     return post;
   }
@@ -96,7 +109,7 @@ class PostService {
    * @param {Object} options 
    * @returns {Promise<Object>}
    */
-  async getFeed(groupId, userId, { cursor, limit = 20, categoryId, search }) {
+  async getFeed(groupId, userId, { cursor, limit = 20, categoryId, search, sort = 'new' }) {
     const where = {
       groupId,
       deletedAt: null
@@ -112,15 +125,20 @@ class PostService {
       ];
     }
 
+    let orderBy = [{ isPinned: 'desc' }, { pinnedAt: 'desc' }];
+    if (sort === 'likes') {
+      orderBy.push({ likeCount: 'desc' });
+    } else if (sort === 'comments') {
+      orderBy.push({ commentCount: 'desc' });
+    }
+    orderBy.push({ createdAt: 'desc' });
+    orderBy.push({ id: 'desc' });
+
     const posts = await prisma.post.findMany({
       where,
       take: limit + 1,
       cursor: cursor ? { id: decodeCursor(cursor) } : undefined,
-      orderBy: [
-        { isPinned: 'desc' },
-        { pinnedAt: 'desc' },
-        { createdAt: 'desc' }
-      ],
+      orderBy,
       include: {
         author: {
           select: { id: true, firstName: true, lastName: true, avatarUrl: true }
@@ -130,16 +148,16 @@ class PostService {
         },
         poll: {
           include: {
-            options: true
+            options: true,
+            votes: {
+              where: { userId },
+              select: { optionId: true }
+            }
           }
         },
         likes: {
           where: { userId },
           take: 1
-        },
-        pollVotes: {
-          where: { userId },
-          select: { optionId: true }
         }
       }
     });
@@ -151,11 +169,19 @@ class PostService {
     }
 
     const data = posts.map(post => {
-      const { likes, pollVotes, ...rest } = post;
+      const { likes, poll, ...rest } = post;
+      let pollData = null;
+      let userVotedOptionIds = [];
+      if (poll) {
+        const { votes, ...pollRest } = poll;
+        userVotedOptionIds = votes ? votes.map(v => v.optionId) : [];
+        pollData = pollRest;
+      }
       return {
         ...rest,
+        poll: pollData,
         hasLiked: likes.length > 0,
-        userVotedOptionIds: pollVotes ? pollVotes.map(v => v.optionId) : []
+        userVotedOptionIds
       };
     });
 
@@ -191,16 +217,16 @@ class PostService {
         },
         poll: {
           include: {
-            options: true
+            options: true,
+            votes: {
+              where: { userId },
+              select: { optionId: true }
+            }
           }
         },
         likes: {
           where: { userId },
           take: 1
-        },
-        pollVotes: {
-          where: { userId },
-          select: { optionId: true }
         }
       }
     });
@@ -209,11 +235,19 @@ class PostService {
       throw new NotFoundError('Post');
     }
 
-    const { likes, pollVotes, ...rest } = post;
+    const { likes, poll, ...rest } = post;
+    let pollData = null;
+    let userVotedOptionIds = [];
+    if (poll) {
+      const { votes, ...pollRest } = poll;
+      userVotedOptionIds = votes ? votes.map(v => v.optionId) : [];
+      pollData = pollRest;
+    }
     return {
       ...rest,
+      poll: pollData,
       hasLiked: likes.length > 0,
-      userVotedOptionIds: pollVotes ? pollVotes.map(v => v.optionId) : []
+      userVotedOptionIds
     };
   }
 
@@ -235,7 +269,7 @@ class PostService {
       throw new NotFoundError('Post');
     }
 
-    if (post.authorId !== userId && userRole !== 'OWNER' && userRole !== 'ADMIN') {
+    if (post.authorId !== userId && !['OWNER', 'ADMIN', 'MODERATOR'].includes(userRole)) {
       throw new ForbiddenError('You do not have permission to update this post');
     }
 
@@ -305,10 +339,83 @@ class PostService {
     const newIsPinned = !post.isPinned;
     const newPinnedAt = newIsPinned ? new Date() : null;
 
-    return prisma.post.update({
-      where: { id: postId },
-      data: { isPinned: newIsPinned, pinnedAt: newPinnedAt }
+    let unpinnedOldPost = null;
+
+    const updatedPost = await prisma.$transaction(async (tx) => {
+      if (newIsPinned) {
+        const currentlyPinned = await tx.post.findFirst({
+          where: { groupId, isPinned: true, deletedAt: null }
+        });
+        if (currentlyPinned && currentlyPinned.id !== postId) {
+          unpinnedOldPost = currentlyPinned;
+          await tx.post.update({
+            where: { id: currentlyPinned.id },
+            data: { isPinned: false, pinnedAt: null }
+          });
+        }
+      }
+
+      return tx.post.update({
+        where: { id: postId },
+        data: { isPinned: newIsPinned, pinnedAt: newPinnedAt }
+      });
     });
+
+    import('../../config/socket.js').then(({ getIO }) => {
+      const io = getIO();
+      if (io) {
+        if (unpinnedOldPost) {
+          io.to(`group:${groupId}`).emit('post:updated', {
+            postId: unpinnedOldPost.id,
+            patch: { isPinned: false }
+          });
+        }
+        io.to(`group:${groupId}`).emit('post:updated', {
+          postId,
+          patch: { isPinned: updatedPost.isPinned }
+        });
+      }
+    }).catch(console.error);
+
+    return updatedPost;
+  }
+
+  /**
+   * Toggles comments on/off
+   * @param {string} groupId 
+   * @param {string} postId 
+   * @param {string} userId 
+   * @param {string} userRole 
+   * @returns {Promise<Object>}
+   */
+  async toggleComments(groupId, postId, userId, userRole) {
+    const post = await prisma.post.findFirst({
+      where: { id: postId, groupId, deletedAt: null }
+    });
+
+    if (!post) {
+      throw new NotFoundError('Post');
+    }
+
+    if (post.authorId !== userId && !['OWNER', 'ADMIN', 'MODERATOR'].includes(userRole)) {
+      throw new ForbiddenError('You do not have permission to toggle comments');
+    }
+
+    const newCommentsEnabled = !post.commentsEnabled;
+
+    const updatedPost = await prisma.post.update({
+      where: { id: postId },
+      data: { commentsEnabled: newCommentsEnabled }
+    });
+
+    import('../../config/socket.js').then(({ getIO }) => {
+      getIO()?.to(`group:${groupId}`).emit('post:updated', {
+        postId,
+        patch: { commentsEnabled: updatedPost.commentsEnabled }
+      });
+    }).catch(console.error);
+
+    return updatedPost;
   }
 
   /**
@@ -327,7 +434,7 @@ class PostService {
       throw new NotFoundError('Post');
     }
 
-    return prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const existingLike = await tx.postLike.findUnique({
         where: {
           postId_userId: { postId, userId }
@@ -358,6 +465,15 @@ class PostService {
         return { liked: true, likeCount: updatedPost.likeCount };
       }
     });
+
+    import('../../config/socket.js').then(({ getIO }) => {
+      getIO()?.to(`group:${groupId}`).emit('post:updated', {
+        postId,
+        patch: { likeCount: result.likeCount }
+      });
+    }).catch(console.error);
+
+    return result;
   }
 }
 

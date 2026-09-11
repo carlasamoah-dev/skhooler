@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
+import { MailCheck } from "lucide-react";
 
 import { Button, Input } from "@/components/ui";
-import * as mockAuth from "@/lib/mockAuth";
+import * as auth from "@/lib/auth";
 
 // Inline wrapper for consistent call shape
-function mockAuthCall(mode, values) {
-  return mode === "signup" ? mockAuth.register(values) : mockAuth.login(values);
+function authCall(mode, values) {
+  return mode === "signup" ? auth.register(values) : auth.login(values);
 }
 
 export const COPY = {
@@ -30,13 +31,10 @@ export const COPY = {
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/**
- * Shared by the dialog and the standalone /login and /signup pages.
- * `onSwitch` is omitted on the standalone pages, which link instead.
- */
 export default function AuthForm({ mode, onSuccess, onSwitch, switchAs }) {
   const copy = COPY[mode];
   const [formError, setFormError] = useState(null);
+  const [waitingVerification, setWaitingVerification] = useState(false);
 
   const {
     register,
@@ -45,15 +43,70 @@ export default function AuthForm({ mode, onSuccess, onSwitch, switchAs }) {
     formState: { errors, isSubmitting },
   } = useForm({ mode: "onSubmit" });
 
+  useEffect(() => {
+    let intervalId;
+    if (waitingVerification) {
+      intervalId = setInterval(async () => {
+        try {
+          const { user } = await auth.me();
+          if (user && user.isEmailVerified) {
+            clearInterval(intervalId);
+            setWaitingVerification("verified_please_login");
+          }
+        } catch (error) {
+          // Keep waiting
+        }
+      }, 3000);
+    }
+    return () => clearInterval(intervalId);
+  }, [waitingVerification]);
+
   const onSubmit = async (values) => {
     setFormError(null);
     try {
-      const { user } = await mockAuthCall(mode, values);
-      onSuccess?.(user);
+      const { user } = await authCall(mode, values);
+      if (mode === "signup" && !user.isEmailVerified) {
+        setWaitingVerification(true);
+      } else {
+        onSuccess?.(user);
+      }
     } catch (error) {
       setFormError(error.message ?? "Something went wrong. Please try again.");
     }
   };
+
+  const handleSwitch = (newMode) => {
+    setFormError(null);
+    onSwitch?.(newMode);
+  };
+
+  if (waitingVerification === "verified_please_login") {
+    return (
+      <div className="flex flex-col gap-6 mt-6">
+        <p className="text-ui bg-sage-100 rounded-inner px-4 py-3 flex items-start gap-3">
+          <MailCheck className="lucide w-5 h-5 shrink-0 mt-0.5" aria-hidden="true" />
+          Email has been verified. Please sign in again.
+        </p>
+        <Button onClick={() => { setWaitingVerification(false); handleSwitch("login"); }} block>
+          Log in
+        </Button>
+      </div>
+    );
+  }
+
+  if (waitingVerification) {
+    return (
+      <div className="flex flex-col gap-6 mt-6">
+        <p className="text-ui bg-sage-100 rounded-inner px-4 py-3 flex items-start gap-3">
+          <MailCheck className="lucide w-5 h-5 shrink-0 mt-0.5" aria-hidden="true" />
+          We've sent a verification link to your email. Please click it to verify your account.
+        </p>
+        <p className="text-center text-ui text-sand-700">
+          Waiting for verification...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4 mt-6">
@@ -109,7 +162,7 @@ export default function AuthForm({ mode, onSuccess, onSwitch, switchAs }) {
       <p className="text-ui text-sand-700 text-center">
         {copy.footer}{" "}
         {onSwitch ? (
-          <button type="button" onClick={() => onSwitch(copy.switchTo)} className="btn btn-ghost">
+          <button type="button" onClick={() => handleSwitch(copy.switchTo)} className="btn btn-ghost">
             {copy.switchLabel}
           </button>
         ) : (

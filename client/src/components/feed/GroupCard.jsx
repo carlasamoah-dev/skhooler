@@ -12,8 +12,14 @@ export default function GroupCard({ group }) {
 
   return (
     <Card padding={18} radius="panel" className="overflow-hidden p-0">
-      {/* Banner slot: 1084x300. No asset yet, so it renders as a brand field. */}
-      <div className="aspect-[1084/300] w-full bg-brand" aria-hidden="true" />
+      {/* Cover banner */}
+      <div className="aspect-[1084/300] w-full overflow-hidden bg-brand" aria-hidden="true">
+        {group?.coverUrl ? (
+          <img src={group.coverUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-brand/60 to-brand" />
+        )}
+      </div>
 
       <div className="p-[22px]">
         <h4>{group.name}</h4>

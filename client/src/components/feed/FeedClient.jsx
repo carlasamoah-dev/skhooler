@@ -6,17 +6,18 @@ import { MessageSquare } from "lucide-react";
 import { useCan } from "@/lib/permissions";
 import { useFeedStore } from "@/store/useFeedStore";
 import { useGroupStore } from "@/store/useGroupStore";
+import { useSessionStore } from "@/store/useSessionStore";
 import { EmptyState, Skeleton } from "@/components/ui";
 import CategoryFilter from "./CategoryFilter";
 import ComposerBar from "./ComposerBar";
-import ComposerModal from "./ComposerModal";
 import FeedSidebar from "./FeedSidebar";
 import PostCard from "./PostCard";
 import SortSelect from "./SortSelect";
 
 export default function FeedClient() {
   const can = useCan();
-  const { slug, group, categories, user } = useGroupStore();
+  const { slug, group, categories } = useGroupStore();
+  const user = useSessionStore((s) => s.user);
   const { posts, cursor, sort, filterCategoryId, status, error, load, loadMore, setCategory, setSort } =
     useFeedStore();
   const sentinelRef = useRef(null);
@@ -43,10 +44,7 @@ export default function FeedClient() {
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-5">
       <div className="flex flex-col gap-4">
         {can("post:create") ? (
-          <>
-            <ComposerBar user={user} slug={slug} />
-            <ComposerModal />
-          </>
+          <ComposerBar user={user} slug={slug} />
         ) : null}
 
         <div className="flex flex-wrap items-center gap-3">

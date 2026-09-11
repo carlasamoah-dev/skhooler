@@ -2,8 +2,11 @@ import Link from "next/link";
 import { MessageCircle, ThumbsUp } from "lucide-react";
 
 import { formatCount, relativeTime } from "@/lib/format";
+import { votePoll } from "@/lib/api";
+import { useGroupStore } from "@/store/useGroupStore";
 import { Card } from "@/components/ui";
 import PostHeader from "./PostHeader";
+import Poll from "./Poll";
 
 /**
  * The whole card navigates to the post. Rather than wrapping the card in an
@@ -14,6 +17,7 @@ import PostHeader from "./PostHeader";
 import Linkify from "react-linkify";
 
 export default function PostCard({ post, href }) {
+  const slug = useGroupStore((s) => s.slug);
   return (
     <Card as="article" padding={24} radius="panel" className="relative px-[26px]">
       <PostHeader
@@ -39,17 +43,41 @@ export default function PostCard({ post, href }) {
         </Linkify>
       </div>
 
-      {/* Render Video Preview */}
-      {post.videoUrl && (
-        <div className="mt-4 border border-divider rounded-xl overflow-hidden bg-zinc-50 flex items-center justify-center p-6">
-          <div className="text-center">
-            <span className="block font-semibold text-zinc-900 mb-1">Attached Video</span>
-            <a href={post.videoUrl} target="_blank" rel="noreferrer" className="text-brand text-sm hover:underline">
-              {post.videoUrl}
-            </a>
+      {/* Render Video */}
+      {post.videoUrl && (() => {
+        let embedUrl = null;
+        try {
+          const u = new URL(post.videoUrl);
+          if (u.hostname === "youtu.be") embedUrl = `https://www.youtube.com/embed/${u.pathname.slice(1)}`;
+          else if (u.hostname.includes("youtube.com")) { const v = u.searchParams.get("v"); if (v) embedUrl = `https://www.youtube.com/embed/${v}`; }
+          else if (u.hostname.includes("vimeo.com")) { const id = u.pathname.split("/").filter(Boolean).pop(); if (id) embedUrl = `https://player.vimeo.com/video/${id}`; }
+          else if (u.hostname.includes("loom.com") && u.pathname.includes("/share/")) { const id = u.pathname.split("/").pop(); if (id) embedUrl = `https://www.loom.com/embed/${id}`; }
+        } catch {}
+        if (embedUrl) {
+          return (
+            <div className="mt-4 aspect-video w-full rounded-inner overflow-hidden bg-black relative z-10">
+              <iframe src={embedUrl} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full" title="Video" />
+            </div>
+          );
+        }
+        
+        // If it's a Supabase storage URL (meaning it's an uploaded file) or ends with a video extension
+        const isUploadedMedia = post.videoUrl.includes('supabase.co') || post.videoUrl.match(/\.(mp4|webm|ogg|mov)$/i);
+        
+        if (isUploadedMedia) {
+          return (
+            <div className="mt-4 aspect-video w-full rounded-inner overflow-hidden bg-black relative z-10">
+              <video src={post.videoUrl} controls className="w-full h-full" playsInline preload="metadata" />
+            </div>
+          );
+        }
+
+        return (
+          <div className="mt-4 border border-divider rounded-xl overflow-hidden bg-zinc-50 flex items-center justify-center p-4 relative z-10">
+            <a href={post.videoUrl} target="_blank" rel="noreferrer" className="text-brand text-sm hover:underline truncate">{post.videoUrl}</a>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Render Attached Files */}
       {post.files && post.files.length > 0 && (
@@ -66,19 +94,14 @@ export default function PostCard({ post, href }) {
       )}
 
       {/* Render Poll */}
-      {post.poll && post.poll.length > 0 && (
-        <div className="mt-4 border border-divider rounded-xl p-4">
-          <span className="font-bold text-zinc-900 block mb-3">Poll</span>
-          <div className="flex flex-col gap-2">
-            {post.poll.map((opt, i) => (
-              <div key={i} className="w-full h-10 border border-zinc-200 rounded-md flex items-center px-4 cursor-pointer hover:bg-zinc-50 transition-colors">
-                <div className="w-4 h-4 rounded-full border border-zinc-300 mr-3 shrink-0"></div>
-                <span className="text-zinc-700 text-sm">{opt}</span>
-              </div>
-            ))}
-          </div>
+      {post.poll ? (
+        <div className="mt-4 relative z-20 pointer-events-none">
+          <Poll
+            poll={{ ...post.poll, votedOptionIds: post.userVotedOptionIds ?? [] }}
+            readOnly
+          />
         </div>
-      )}
+      ) : null}
 
       {post.actionButtonText ? (
         <a

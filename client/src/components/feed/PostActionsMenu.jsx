@@ -7,6 +7,7 @@ import { Check, Copy, MessageSquareOff, MessageSquare, MoreHorizontal, Pencil, T
 import { deletePost, togglePostComments } from "@/lib/api";
 import { useCan } from "@/lib/permissions";
 import { useGroupStore } from "@/store/useGroupStore";
+import { useComposerStore } from "@/store/useComposerStore";
 
 /**
  * Three-dot actions menu shown on a post detail.
@@ -15,9 +16,10 @@ import { useGroupStore } from "@/store/useGroupStore";
  *  - Moderator/Admin/Owner → Edit, Copy link, Turn off/on comments, Delete
  *  - Member                → Copy link only
  */
-export default function PostActionsMenu({ post, onPostChanged, onDeleted }) {
+export default function PostActionsMenu({ post, inModal = false, onPostChanged, onDeleted }) {
   const can = useCan();
   const { slug } = useGroupStore();
+  const openModal = useComposerStore(s => s.openModal);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -45,10 +47,10 @@ export default function PostActionsMenu({ post, onPostChanged, onDeleted }) {
   };
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete this post? This can't be undone.")) return;
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
     setBusy(true);
     try {
-      await deletePost(post.id);
+      await deletePost(slug, post.id);
       setOpen(false);
       onDeleted?.();
       router.push(`/${slug}/community`);
@@ -60,8 +62,8 @@ export default function PostActionsMenu({ post, onPostChanged, onDeleted }) {
   const handleToggleComments = async () => {
     setBusy(true);
     try {
-      const result = await togglePostComments(post.id);
-      onPostChanged?.({ commentsEnabled: result.commentsEnabled });
+      const result = await togglePostComments(slug, post.id);
+      onPostChanged?.({ commentsEnabled: result?.commentsEnabled ?? !post.commentsEnabled });
       setOpen(false);
     } finally {
       setBusy(false);
@@ -94,7 +96,13 @@ export default function PostActionsMenu({ post, onPostChanged, onDeleted }) {
                 role="menuitem"
                 onClick={() => {
                   setOpen(false);
-                  router.push(`/${slug}/posts/new?edit=${post.id}`);
+                  if (inModal) {
+                    router.back();
+                    // Slight delay to allow modal out-animation/routing before opening the composer
+                    setTimeout(() => openModal(post), 100);
+                  } else {
+                    openModal(post);
+                  }
                 }}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-[14px] text-ink hover:bg-sand-100 transition-colors text-left"
               >

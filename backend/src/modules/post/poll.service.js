@@ -42,12 +42,12 @@ class PollService {
     await prisma.$transaction(async (tx) => {
       // Remove existing votes by this user for this poll
       const existingVotes = await tx.pollVote.findMany({
-        where: { postId, userId }
+        where: { pollId: poll.id, userId }
       });
 
       if (existingVotes.length > 0) {
         await tx.pollVote.deleteMany({
-          where: { postId, userId }
+          where: { pollId: poll.id, userId }
         });
         
         const oldOptionIds = existingVotes.map(v => v.optionId);
@@ -60,7 +60,7 @@ class PollService {
       // Add new votes
       await tx.pollVote.createMany({
         data: optionIds.map(optionId => ({
-          postId,
+          pollId: poll.id,
           userId,
           optionId
         }))
@@ -75,7 +75,7 @@ class PollService {
       // Recalculate total unique voters for this poll
       const uniqueVoters = await tx.pollVote.groupBy({
         by: ['userId'],
-        where: { postId },
+        where: { pollId: poll.id },
         _count: true
       });
 
@@ -85,7 +85,18 @@ class PollService {
       });
     });
 
-    return this.getPollResults(postId, userId);
+    const result = await this.getPollResults(postId, userId);
+
+    import('../../config/socket.js').then(({ getIO }) => {
+      // Exclude userVotedOptionIds from broadcast so we don't mess up other clients' local state
+      const { userVotedOptionIds, ...pollBroadcast } = result;
+      getIO()?.to(`group:${groupId}`).emit('post:updated', {
+        postId,
+        patch: { poll: pollBroadcast }
+      });
+    }).catch(console.error);
+
+    return result;
   }
 
   /**
@@ -109,7 +120,7 @@ class PollService {
     }
 
     const userVotes = await prisma.pollVote.findMany({
-      where: { postId, userId },
+      where: { pollId: poll.id, userId },
       select: { optionId: true }
     });
 

@@ -1,8 +1,13 @@
 import DiscoverClient from "@/components/DiscoverClient";
 
 export const metadata = {
-  title: "Discover communities",
-  description: "Find and join communities of like-minded people. Learn new skills, network, and grow together.",
+  title: "Discover Communities",
+  description:
+    "Explore thousands of online communities for creators, learners, and builders. Find your tribe on Skhooler.",
+  openGraph: {
+    title: "Discover Communities · Skhooler",
+    description: "Explore thousands of online communities for creators, learners, and builders.",
+  },
 };
 
 export default function DiscoverPage() {

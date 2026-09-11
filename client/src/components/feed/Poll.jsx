@@ -12,7 +12,7 @@ function closesIn(expiresAt, now) {
   return days === 1 ? "closes in 1 day" : `closes in ${days} days`;
 }
 
-export default function Poll({ poll, onVote }) {
+export default function Poll({ poll, onVote, readOnly = false }) {
   const [pending, setPending] = useState(null);
   // Read the clock once, at mount: calling it during render is impure and a
   // poll closing while the page is open is not worth a ticking timer.
@@ -25,7 +25,7 @@ export default function Poll({ poll, onVote }) {
     shown.totalVotes === 0 ? 0 : Math.round((option.voteCount / shown.totalVotes) * 100);
 
   const vote = async (optionId) => {
-    if (closed) return;
+    if (closed || readOnly) return;
     const next = shown.allowMultiple
       ? voted.has(optionId)
         ? [...voted].filter((id) => id !== optionId)
@@ -92,7 +92,7 @@ export default function Poll({ poll, onVote }) {
                   style={{ width: `${percent}%` }}
                 />
                 <span className="relative flex items-center gap-3 text-ui">
-                  <span className="truncate">{option.label}</span>
+                  <span className="truncate">{option.text || option.label}</span>
                   <span className="ml-auto font-display font-extrabold">{`${percent}%`}</span>
                 </span>
               </button>

@@ -10,7 +10,7 @@ import Panel from "./Panel";
 
 const TONES = ["brand", "sage", "neutral"];
 
-export default function CategoriesPanel({ categories, onCategories }) {
+export default function CategoriesPanel({ slug, categories, onCategories }) {
   // SettingsClient remounts this panel when the categories change, so local
   // order state starts fresh rather than being synced in from an effect.
   const [rows, setRows] = useState(categories);
@@ -33,7 +33,7 @@ export default function CategoriesPanel({ categories, onCategories }) {
         <Button
           disabled={!dirty}
           onClick={async () => {
-            await reorderCategories(rows.map((r) => r.id));
+            await reorderCategories(slug, rows.map((r) => r.id));
             await onCategories?.();
           }}
         >
@@ -82,7 +82,7 @@ export default function CategoriesPanel({ categories, onCategories }) {
             </button>
 
             <StatusDot tone={TONES[index % TONES.length]} label={category.name} />
-            <p className="text-meta text-sand-700">{`${category.postCount.toLocaleString("en-GB")} posts`}</p>
+            <p className="text-meta text-sand-700">{`${(category._count?.posts ?? category.postCount ?? 0).toLocaleString("en-GB")} posts`}</p>
 
             <div className="ml-auto flex items-center gap-1">
               <Button
@@ -91,7 +91,7 @@ export default function CategoriesPanel({ categories, onCategories }) {
                 onClick={async () => {
                   const name = window.prompt("Rename category", category.name);
                   if (name?.trim()) {
-                    await renameCategory(category.id, name.trim());
+                    await renameCategory(slug, category.id, name.trim());
                     await onCategories?.();
                   }
                 }}
@@ -102,7 +102,7 @@ export default function CategoriesPanel({ categories, onCategories }) {
                 variant="ghost"
                 size="sm"
                 onClick={async () => {
-                  await deleteCategory(category.id);
+                  await deleteCategory(slug, category.id);
                   await onCategories?.();
                 }}
               >
@@ -125,7 +125,7 @@ export default function CategoriesPanel({ categories, onCategories }) {
           variant="secondary"
           disabled={!adding.trim()}
           onClick={async () => {
-            await addCategory(adding.trim());
+            await addCategory(slug, adding.trim());
             setAdding("");
             await onCategories?.();
           }}

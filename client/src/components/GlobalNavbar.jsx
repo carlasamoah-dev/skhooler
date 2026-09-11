@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Search, Bell, LogOut } from "lucide-react";
 import { useAuthModalStore } from "@/store/useAuthModalStore";
@@ -10,13 +11,26 @@ import { Avatar, IconButton } from "@/components/ui";
 
 export default function GlobalNavbar() {
   const openModal = useAuthModalStore((state) => state.openModal);
-  const { searchQuery, setSearchQuery } = useSearchStore();
-  
+  const { setSearchQuery } = useSearchStore();
+
   const user = useSessionStore((s) => s.user);
   const signOut = useSessionStore((s) => s.signOut);
   const toggleNotifications = useUiStore((s) => s.toggleNotifications);
 
   const userName = user ? `${user.firstName} ${user.lastName}` : "";
+
+  // Local state for instant input feedback; store update is debounced
+  const [inputValue, setInputValue] = useState("");
+  const debounceRef = useRef(null);
+
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    setInputValue(val);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setSearchQuery(val), 400);
+  };
+
+  useEffect(() => () => clearTimeout(debounceRef.current), []);
 
   return (
     <nav className="sticky top-0 z-50 w-full h-[64px] bg-surface border-b border-divider flex items-center justify-between px-6">
@@ -30,12 +44,11 @@ export default function GlobalNavbar() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sand-500" />
           <input
             type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={inputValue}
+            onChange={handleSearchChange}
             placeholder="Search communities..."
             aria-label="Search communities"
             className="w-full h-9 pl-9 pr-4 bg-sand-100 border border-transparent rounded-lg focus:bg-ground focus:border-divider focus:outline-none transition-all text-[14px] text-ink placeholder:text-sand-500"
-            suppressHydrationWarning
           />
         </div>
       </div>

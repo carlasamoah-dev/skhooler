@@ -7,7 +7,7 @@ export default function MainLayout({ children }) {
       <NavigationRail />
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         <GlobalNavbar />
-        <main className="flex-1 overflow-y-auto bg-ground">
+        <main className="flex-1 overflow-y-auto bg-ground pb-16 md:pb-0">
           {children}
         </main>
       </div>

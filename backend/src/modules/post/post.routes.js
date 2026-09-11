@@ -7,7 +7,7 @@ import * as postController from './post.controller.js'
 import * as commentController from './comment.controller.js'
 import * as pollController from './poll.controller.js'
 import { authenticate } from '../../middleware/auth.js'
-import { loadGroup, requireMembership, requireAdmin } from '../../middleware/authorize.js'
+import { loadGroup, requireMembership, requireAdmin, requireModerator } from '../../middleware/authorize.js'
 import { validateBody, validateQuery } from '../../middleware/validateRequest.js'
 import * as schemas from './post.schema.js'
 
@@ -18,7 +18,7 @@ router.post(
   '/', 
   authenticate, 
   loadGroup, 
-  requireAdmin, 
+  requireModerator, 
   validateBody(schemas.createPostSchema), 
   postController.createPost
 )
@@ -61,8 +61,16 @@ router.post(
   '/:postId/pin', 
   authenticate, 
   loadGroup, 
-  requireAdmin, 
+  requireModerator, 
   postController.togglePin
+)
+
+router.post(
+  '/:postId/comments/toggle', 
+  authenticate, 
+  loadGroup, 
+  requireModerator, 
+  postController.toggleComments
 )
 
 router.post(

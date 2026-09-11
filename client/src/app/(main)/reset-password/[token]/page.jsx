@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 
-import * as auth from "@/lib/mockAuth";
+import * as auth from "@/lib/auth";
 import AuthPageShell from "@/components/auth/AuthPageShell";
 import { Button, Input } from "@/components/ui";
 

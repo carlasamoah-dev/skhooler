@@ -27,6 +27,74 @@ function resolve(value) {
   return new Promise((r) => setTimeout(() => r(structuredClone(value)), LATENCY_MS));
 }
 
+function getToken() {
+  return typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+}
+
+export async function authFetch(path, options = {}, retry = true) {
+  let token = getToken();
+  let res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+  });
+
+  if (res.status === 401 && retry) {
+    try {
+      const { refreshTokens } = await import("./auth");
+      await refreshTokens();
+      // Retry once with new token
+      return authFetch(path, options, false);
+    } catch (e) {
+      // Refresh failed, let the original 401 fail below
+    }
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data?.error?.message || data?.message || "Something went wrong";
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
+  }
+  return data.data ?? data;
+}
+
+/**
+ * Upload a single File to Supabase Storage via a backend-issued signed URL.
+ * Returns the public URL of the uploaded file, or null if no file provided.
+ */
+export async function uploadImage(file, bucket) {
+  if (!file) return null;
+
+  // 1. Get signed URL from backend
+  const { signedUrl, publicUrl } = await authFetch("/upload/signed-url", {
+    method: "POST",
+    body: JSON.stringify({
+      bucket,
+      filename: file.name,
+      contentType: file.type,
+    }),
+  });
+
+  // 2. PUT the file directly to Supabase Storage
+  const uploadRes = await fetch(signedUrl, {
+    method: "PUT",
+    headers: { "Content-Type": file.type },
+    body: file,
+  });
+
+  if (!uploadRes.ok) {
+    throw new Error("Failed to upload image to storage");
+  }
+
+  return publicUrl;
+}
+
 /* --------------------------------- shell --------------------------------- */
 
 const ROLES = ["OWNER", "ADMIN", "MODERATOR", "MEMBER"];
@@ -64,134 +132,89 @@ export function fetchNotifications() {
 
 /* ---------------------------------- feed --------------------------------- */
 
-// Mutations are applied here so they survive navigation within a session.
-const posts = structuredClone(mocks.posts.items);
-const comments = structuredClone(mocks.comments.items);
+// Keep mock join requests + events (not yet migrated)
 let joinRequests = structuredClone(mocks.joinRequests.items);
 const events = structuredClone(mocks.events.items);
 
-/** `cursor` is the index of the first item of the page, as an opaque string. */
-export function fetchPosts({ cursor = null, categoryId = null } = {}) {
-  const matching = categoryId ? posts.filter((p) => p.category?.id === categoryId) : posts;
-  // Pinned posts lead the feed regardless of age.
-  const ordered = [...matching].sort((a, b) => {
-    if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-    return new Date(b.createdAt) - new Date(a.createdAt);
+/**
+ * Fetch paginated posts from the real backend.
+ * @param {string} slug - community slug
+ * @param {{ cursor?: string, categoryId?: string }} opts
+ */
+export async function fetchPosts(slug, { cursor = null, categoryId = null, sort = 'new' } = {}) {
+  const params = new URLSearchParams();
+  if (cursor) params.set("cursor", cursor);
+  if (categoryId) params.set("categoryId", categoryId);
+  if (sort) params.set("sort", sort);
+  const qs = params.toString();
+  const result = await authFetch(`/groups/${slug}/posts${qs ? `?${qs}` : ""}`);
+  // Backend returns { data: [...], meta: { nextCursor } }
+  const items = result?.data ?? result ?? [];
+  const nextCursor = result?.meta?.nextCursor ?? null;
+  return { items, nextCursor };
+}
+
+export async function fetchPost(slug, postId) {
+  return authFetch(`/groups/${slug}/posts/${postId}`);
+}
+
+export async function fetchComments(slug, postId) {
+  const result = await authFetch(`/groups/${slug}/posts/${postId}/comments`);
+  const items = result?.data ?? result ?? [];
+  return { items, nextCursor: result?.meta?.nextCursor ?? null };
+}
+
+export async function togglePostLike(slug, postId) {
+  return authFetch(`/groups/${slug}/posts/${postId}/like`, { method: "POST" });
+}
+
+export async function togglePostPin(slug, postId) {
+  return authFetch(`/groups/${slug}/posts/${postId}/pin`, { method: "POST" });
+}
+
+export async function toggleCommentLike(slug, postId, commentId) {
+  return authFetch(`/groups/${slug}/posts/${postId}/comments/${commentId}/like`, { method: "POST" });
+}
+
+export async function votePoll(slug, postId, optionIds) {
+  return authFetch(`/groups/${slug}/posts/${postId}/poll/vote`, {
+    method: "POST",
+    body: JSON.stringify({ optionIds }),
   });
-
-  const start = cursor ? Number(cursor) : 0;
-  const page = ordered.slice(start, start + MOCK_PAGE_SIZE);
-  const next = start + MOCK_PAGE_SIZE < ordered.length ? String(start + MOCK_PAGE_SIZE) : null;
-
-  return resolve({ items: page, nextCursor: next });
 }
 
-export function fetchPost(postId) {
-  const post = posts.find((p) => p.id === postId);
-  return post ? resolve(post) : Promise.reject(new Error("That post no longer exists."));
+export async function createComment(slug, postId, { content, parentCommentId = null }) {
+  return authFetch(`/groups/${slug}/posts/${postId}/comments`, {
+    method: "POST",
+    body: JSON.stringify({ content, parentCommentId }),
+  });
 }
 
-export function fetchComments(postId) {
-  return resolve({ items: comments.filter((c) => c.postId === postId), nextCursor: null });
+export async function createPost(slug, payload) {
+  const result = await authFetch(`/groups/${slug}/posts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return result?.data ?? result;
 }
 
-export function togglePostLike(postId) {
-  const post = posts.find((p) => p.id === postId);
-  post.hasLiked = !post.hasLiked;
-  post.likeCount += post.hasLiked ? 1 : -1;
-  return resolve({ hasLiked: post.hasLiked, likeCount: post.likeCount });
+
+export async function deletePost(slug, postId) {
+  return authFetch(`/groups/${slug}/posts/${postId}`, { method: "DELETE" });
 }
 
-export function togglePostPin(postId) {
-  const post = posts.find((p) => p.id === postId);
-  post.isPinned = !post.isPinned;
-  return resolve({ isPinned: post.isPinned });
+export async function togglePostComments(slug, postId) {
+  return authFetch(`/groups/${slug}/posts/${postId}/comments/toggle`, { method: "POST" });
 }
 
-export function toggleCommentLike(commentId) {
-  const comment = comments.find((c) => c.id === commentId);
-  comment.hasLiked = !comment.hasLiked;
-  comment.likeCount += comment.hasLiked ? 1 : -1;
-  return resolve({ hasLiked: comment.hasLiked, likeCount: comment.likeCount });
-}
-
-export function votePoll(postId, optionIds) {
-  const { poll } = posts.find((p) => p.id === postId);
-  const previous = new Set(poll.votedOptionIds);
-  const next = new Set(optionIds);
-
-  for (const option of poll.options) {
-    const had = previous.has(option.id);
-    const has = next.has(option.id);
-    if (had === has) continue;
-    option.voteCount += has ? 1 : -1;
-  }
-  // One person is one vote, however many options they picked.
-  if (previous.size === 0 && next.size > 0) poll.totalVotes += 1;
-  if (previous.size > 0 && next.size === 0) poll.totalVotes -= 1;
-  poll.votedOptionIds = [...next];
-
-  return resolve(poll);
-}
-
-export function createComment(postId, { content, parentCommentId = null }) {
-  const comment = {
-    id: `local-${Date.now()}`,
-    postId,
-    parentCommentId,
-    content,
-    author: { ...mocks.session.user },
-    likeCount: 0,
-    hasLiked: false,
-    createdAt: new Date().toISOString(),
-  };
-  comments.push(comment);
-  const post = posts.find((p) => p.id === postId);
-  if (post) {
-    post.commentCount += 1;
-    post.lastCommentAt = comment.createdAt;
-  }
-  return resolve(comment);
-}
-
-export function createPost(payload) {
-  const category = mocks.categories.find((c) => c.id === payload.categoryId) ?? null;
-  const post = {
-    id: `local-${Date.now()}`,
-    ...payload,
-    author: { ...mocks.session.user, role: mocks.membership.role },
-    category: category && { id: category.id, name: category.name },
-    likeCount: 0,
-    commentCount: 0,
-    hasLiked: false,
-    commentsEnabled: true,
-    lastCommentAt: null,
-    createdAt: new Date().toISOString(),
-    poll: null,
-    attachments: [],
-  };
-  posts.unshift(post);
-  return resolve(post);
-}
-
-export function deletePost(postId) {
-  const index = posts.findIndex((p) => p.id === postId);
-  if (index !== -1) posts.splice(index, 1);
-  return resolve({ ok: true });
-}
-
-export function togglePostComments(postId) {
-  const post = posts.find((p) => p.id === postId);
-  if (!post) return Promise.reject(new Error("Post not found"));
-  post.commentsEnabled = !post.commentsEnabled;
-  return resolve({ commentsEnabled: post.commentsEnabled });
-}
-
-export function updatePost(postId, payload) {
-  const post = posts.find((p) => p.id === postId);
-  if (!post) return Promise.reject(new Error("Post not found"));
-  Object.assign(post, payload);
-  return resolve(post);
+export async function updatePost(slug, postId, payload) {
+  const result = await authFetch(`/groups/${slug}/posts/${postId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return result?.data ?? result;
 }
 
 
@@ -419,60 +442,86 @@ export function cancelEvent(eventId) {
 
 /* -------------------------------- settings -------------------------------- */
 
-export function fetchSettings(slug) {
-  return resolve({
-    group: { ...group, slug },
-    categories,
-    tiers,
-    questions: joinQuestions,
-    preferences,
-    invites,
+export async function fetchSettings(slug) {
+  const g = await authFetch(`/groups/${slug}`);
+  
+  return {
+    group: {
+      id: g.id,
+      slug: g.slug,
+      name: g.name,
+      description: g.description ?? "",
+      iconUrl: g.iconUrl ?? null,
+      coverUrl: g.coverUrl ?? null,
+      visibility: g.visibility,
+      pricingModel: g.pricingModel,
+      price: g.price,
+      billingInterval: g.billingInterval,
+      trialDays: g.trialDays,
+      joinApproval: g.joinApproval,
+      autoWelcomeMessage: g.autoWelcomeMessage ?? "",
+      tags: g.tags ?? [],
+    },
+    categories: Array.isArray(g.categories) ? g.categories : [],
+    tiers: Array.isArray(g.memberTiers) ? g.memberTiers : [],
+    questions: joinQuestions, // Not yet migrated
+    preferences: preferences, // Not yet migrated
+    invites: invites,         // Not yet migrated
+  };
+}
+
+export async function updateGroup(slug, patch) {
+  const data = await authFetch(`/groups/${slug}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
   });
+  return data;
 }
 
-export function updateGroup(patch) {
-  group = { ...group, ...patch };
-  return resolve(group);
-}
-
-export function updatePricing(patch) {
+export async function updatePricing(slug, patch) {
   // The API refuses Paid without a price and an interval; mirror that here so
   // the client never learns the rule only from a server it cannot reach.
   if (patch.pricingModel === "PAID" && (!patch.price || !patch.billingInterval)) {
     return Promise.reject(new Error("A paid community needs a price and a billing interval."));
   }
-  group = {
-    ...group,
-    ...patch,
-    price: patch.pricingModel === "FREE" ? null : patch.price,
-    billingInterval: patch.pricingModel === "FREE" ? null : patch.billingInterval,
-    trialDays: patch.pricingModel === "FREE" ? null : patch.trialDays,
-  };
-  return resolve(group);
+  const data = await authFetch(`/groups/${slug}/pricing`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+  return data;
 }
 
 /* categories */
 
-export function addCategory(name) {
-  const category = { id: `local-${Date.now()}`, name, postCount: 0, position: categories.length };
-  categories = [...categories, category];
-  return resolve(category);
+export async function addCategory(slug, name) {
+  const data = await authFetch(`/groups/${slug}/categories`, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+  return data;
 }
 
-export function renameCategory(categoryId, name) {
-  categories = categories.map((c) => (c.id === categoryId ? { ...c, name } : c));
-  return resolve(categories);
+export async function renameCategory(slug, categoryId, name) {
+  const data = await authFetch(`/groups/${slug}/categories/${categoryId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ name }),
+  });
+  return data;
 }
 
-export function deleteCategory(categoryId) {
-  categories = categories.filter((c) => c.id !== categoryId).map((c, i) => ({ ...c, position: i }));
-  return resolve(categories);
+export async function deleteCategory(slug, categoryId) {
+  const data = await authFetch(`/groups/${slug}/categories/${categoryId}`, {
+    method: "DELETE",
+  });
+  return data;
 }
 
-export function reorderCategories(orderedIds) {
-  const byId = new Map(categories.map((c) => [c.id, c]));
-  categories = orderedIds.map((id, i) => ({ ...byId.get(id), position: i }));
-  return resolve(categories);
+export async function reorderCategories(slug, orderedIds) {
+  const data = await authFetch(`/groups/${slug}/categories/reorder`, {
+    method: "PATCH",
+    body: JSON.stringify({ orderedIds }),
+  });
+  return data;
 }
 
 /* tiers — name only, never a price */
@@ -639,4 +688,45 @@ export function declineJoinRequest(requestId) {
 
 export function fetchGeography() {
   return resolve(mocks.memberGeography);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Real backend — group discovery & global search
+───────────────────────────────────────────────────────────────────────────── */
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+
+/**
+ * Fetch ranked, filterable public groups from the backend.
+ * @param {{ q?: string, tag?: string, pricing?: string, page?: number, limit?: number }} params
+ */
+export async function fetchDiscoverGroups(params = {}) {
+  const qs = new URLSearchParams();
+  if (params.q) qs.set("q", params.q);
+  if (params.tag) qs.set("tag", params.tag);
+  if (params.pricing) qs.set("pricing", params.pricing);
+  if (params.page) qs.set("page", String(params.page));
+  if (params.limit) qs.set("limit", String(params.limit));
+
+  const response = await fetch(`${API_URL}/groups?${qs.toString()}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Failed to fetch communities");
+  const data = await response.json();
+  return data.data; // { groups, total, page, totalPages }
+}
+
+/**
+ * Global community search via the backend's global search endpoint.
+ * @param {string} q
+ */
+export async function fetchGlobalSearch(q) {
+  if (!q || !q.trim()) return { groups: [] };
+  const qs = new URLSearchParams({ q: q.trim() });
+  const response = await fetch(`${API_URL}/groups/search-global?${qs.toString()}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) return { groups: [] };
+  const data = await response.json();
+  return data.data?.results ?? { groups: [] };
 }

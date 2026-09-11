@@ -6,12 +6,14 @@ import { useSelectedLayoutSegments } from "next/navigation";
 
 import { fetchNotifications } from "@/lib/api";
 import { useGroupStore } from "@/store/useGroupStore";
-import { useUiStore } from "@/store/useUiStore";
 import { useSessionStore } from "@/store/useSessionStore";
+import { useUiStore } from "@/store/useUiStore";
+import { useSocketStore } from "@/store/useSocketStore";
 import { Skeleton } from "@/components/ui";
 import NotificationPanel from "./NotificationPanel";
 import PrimaryNav from "./PrimaryNav";
 import TopBar from "./TopBar";
+import ComposerModal from "@/components/feed/ComposerModal";
 
 /** Which nav tab a route lights up. Post detail and the composer stay on the feed. */
 function activeTabFrom(segments) {
@@ -28,9 +30,11 @@ function activeTabFrom(segments) {
 
 export default function AppShell({ slug, children }) {
   const segments = useSelectedLayoutSegments();
-  const { group, user, status, error, hydrate } = useGroupStore();
+  const { group, status, error, hydrate } = useGroupStore();
   const { notifOpen, toggleNotifications, closeNotifications } = useUiStore();
+  const user = useSessionStore((s) => s.user);
   const signOut = useSessionStore((s) => s.signOut);
+  const { connect, disconnect, joinGroup, leaveGroup, isConnected, socket } = useSocketStore();
 
   const [search, setSearch] = useState("");
   const [notifications, setNotifications] = useState({ items: [], unreadCount: 0 });
@@ -38,6 +42,48 @@ export default function AppShell({ slug, children }) {
   useEffect(() => {
     hydrate(slug);
   }, [slug, hydrate]);
+
+  // Handle Socket Connection
+  useEffect(() => {
+    connect();
+    return () => disconnect();
+  }, [connect, disconnect]);
+
+  useEffect(() => {
+    if (status === "ready" && group?.id) {
+      joinGroup(group.id);
+    }
+    return () => {
+      if (group?.id) leaveGroup(group.id);
+    };
+  }, [status, group?.id, joinGroup, leaveGroup]);
+
+  // Handle Socket Events
+  useEffect(() => {
+    const { socket, isConnected } = useSocketStore.getState();
+    if (!socket || !isConnected) return;
+
+    const onPostUpdated = ({ postId, patch }) => {
+      // Lazy load feed store
+      import("@/store/useFeedStore").then(({ useFeedStore }) => {
+        useFeedStore.getState().updatePost(postId, patch);
+      });
+    };
+
+    const onPostCreated = ({ post }) => {
+      import("@/store/useFeedStore").then(({ useFeedStore }) => {
+        useFeedStore.getState().addPost(post);
+      });
+    };
+
+    socket.on("post:updated", onPostUpdated);
+    socket.on("post:created", onPostCreated);
+
+    return () => {
+      socket.off("post:updated", onPostUpdated);
+      socket.off("post:created", onPostCreated);
+    };
+  }, [socket, isConnected]); 
 
   useEffect(() => {
     let cancelled = false;
@@ -108,6 +154,7 @@ export default function AppShell({ slug, children }) {
         }
         onClose={closeNotifications}
       />
+      <ComposerModal />
     </>
   );
 }
