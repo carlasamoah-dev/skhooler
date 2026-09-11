@@ -18,6 +18,7 @@ import searchRoutes from './modules/search/search.routes.js'
 import integrationRoutes from './modules/integration/integration.routes.js'
 import { groupAnalyticsRoutes, adminAnalyticsRoutes } from './modules/analytics/analytics.routes.js'
 import uploadRoutes from './modules/upload/upload.routes.js'
+import userRoutes from './modules/user/user.routes.js'
 
 const app = express()
 
@@ -55,6 +56,7 @@ app.use('/api/billing', billingRoutes)
 app.use('/api/groups/:slug/analytics', groupAnalyticsRoutes)
 app.use('/api/admin/analytics', adminAnalyticsRoutes)
 app.use('/api/upload', uploadRoutes)
+app.use('/api/users', userRoutes)
 
 // Error handling (must be last)
 app.use(notFoundHandler)

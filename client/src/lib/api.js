@@ -154,6 +154,24 @@ export async function fetchPosts(slug, { cursor = null, categoryId = null, sort 
   return { items, nextCursor };
 }
 
+export async function getSession() {
+  return authFetch("/auth/me");
+}
+
+export async function updateAccount(payload) {
+  const result = await authFetch("/auth/me", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return result?.data ?? result;
+}
+
+export async function fetchUserProfile(username) {
+  const result = await authFetch(`/users/${username}`, { cache: "no-store" });
+  return result?.data ?? result;
+}
+
 export async function fetchPost(slug, postId) {
   return authFetch(`/groups/${slug}/posts/${postId}`);
 }
@@ -602,36 +620,7 @@ export function fetchMemberProfile(memberId) {
   return resolve({ ...member, recentPosts: mocks.posts });
 }
 
-export function fetchUserProfile(username) {
-  // If it's the current user's mock username, return the me() data plus mock communities
-  if (username === "jonathan-ndayele") {
-    return resolve({
-      id: "mock-1",
-      firstName: "Jonathan",
-      lastName: "Ndayele",
-      username: "jonathan-ndayele",
-      location: "Accra, Ghana",
-      email: "jonathan@skhooler.com", // Including email per user request
-      avatarUrl: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=64&h=64&fit=crop",
-      createdCommunities: [
-        { slug: "remote-jobs-hq", name: "Remote Jobs HQ", iconUrl: "https://images.unsplash.com/photo-1541364983171-a8ba01e95cfc?w=128&h=128&fit=crop" },
-        { slug: "maker-school", name: "Maker School", iconUrl: null }
-      ]
-    });
-  }
-  
-  // Otherwise, fallback generic user
-  return resolve({
-    id: `mock-${username}`,
-    firstName: "Demo",
-    lastName: "User",
-    username: username,
-    location: "Unknown",
-    email: `${username}@skhooler.com`,
-    avatarUrl: null,
-    createdCommunities: []
-  });
-}
+
 
 export function changeMemberRole(memberId, role) {
   const member = members.find((m) => m.id === memberId);

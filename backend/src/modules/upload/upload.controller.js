@@ -11,7 +11,7 @@ import path from 'path'
 
 const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY)
 
-const ALLOWED_BUCKETS = ['community-icons', 'community-covers']
+const ALLOWED_BUCKETS = ['community-icons', 'community-covers', 'avatars']
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024 // 5MB
 

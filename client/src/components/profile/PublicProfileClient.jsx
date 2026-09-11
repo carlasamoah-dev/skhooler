@@ -60,7 +60,23 @@ export default function PublicProfileClient({ username }) {
                 <a href={`mailto:${profile.email}`} className="hover:text-ink transition-colors">{profile.email}</a>
               </div>
             )}
+            
+            {profile.socialLinks?.filter(link => link.isVisible).map((link, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <a href={link.url} target="_blank" rel="noopener noreferrer" className="hover:text-brand transition-colors flex items-center gap-1.5 capitalize font-medium">
+                  <span className="w-4 h-4 rounded-full bg-sand-200 flex items-center justify-center text-[10px]">🔗</span>
+                  {link.platform}
+                </a>
+              </div>
+            ))}
           </div>
+
+          {profile.bio && (
+            <div className="mb-8">
+              <h3 className="text-lg font-bold text-ink mb-2">About</h3>
+              <p className="text-sand-700 whitespace-pre-line leading-relaxed">{profile.bio}</p>
+            </div>
+          )}
 
           <div>
             <h3 className="text-lg font-bold text-ink mb-4">Communities by {profile.firstName}</h3>

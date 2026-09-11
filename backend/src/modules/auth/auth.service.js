@@ -322,6 +322,9 @@ class AuthService {
         firstName: true,
         lastName: true,
         email: true,
+        username: true,
+        location: true,
+        socialLinks: true,
         avatarUrl: true,
         bio: true,
         isEmailVerified: true,
@@ -350,6 +353,15 @@ class AuthService {
    * @returns {Object}
    */
   async updateProfile(userId, data) {
+    if (data.username) {
+      const existingUser = await prisma.user.findFirst({
+        where: { username: data.username, id: { not: userId } }
+      });
+      if (existingUser) {
+        throw new BadRequestError('Username is already taken');
+      }
+    }
+
     const user = await prisma.user.update({
       where: { id: userId },
       data,
@@ -358,6 +370,9 @@ class AuthService {
         firstName: true,
         lastName: true,
         email: true,
+        username: true,
+        location: true,
+        socialLinks: true,
         avatarUrl: true,
         bio: true,
         isEmailVerified: true,

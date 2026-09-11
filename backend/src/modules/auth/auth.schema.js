@@ -47,4 +47,12 @@ export const updateProfileSchema = z.object({
   firstName: z.string().trim().min(2).max(100).regex(/^[a-zA-Z\s'-]+$/).optional(),
   lastName: z.string().trim().min(2).max(100).regex(/^[a-zA-Z\s'-]+$/).optional(),
   bio: z.string().max(500).nullable().optional(),
+  username: z.string().trim().min(3).max(50).regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores').optional(),
+  location: z.string().max(100).nullable().optional(),
+  socialLinks: z.array(z.object({
+    platform: z.enum(['facebook', 'linkedin', 'instagram', 'youtube']),
+    url: z.string().url().or(z.literal('')),
+    isVisible: z.boolean().default(true)
+  })).nullable().optional(),
+  avatarUrl: z.string().url().nullable().optional()
 }).partial();
