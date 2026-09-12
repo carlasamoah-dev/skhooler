@@ -66,6 +66,37 @@ export async function authFetch(path, options = {}, retry = true) {
   return data.data ?? data;
 }
 
+export async function authFetchFull(path, options = {}, retry = true) {
+  let token = getToken();
+  let res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    credentials: "include",
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+  });
+
+  if (res.status === 401 && retry) {
+    try {
+      const { refreshTokens } = await import("./auth");
+      await refreshTokens();
+      return authFetchFull(path, options, false);
+    } catch (e) {}
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data?.error?.message || data?.message || "Something went wrong";
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
 /**
  * Upload a single File to Supabase Storage via a backend-issued signed URL.
  * Returns the public URL of the uploaded file, or null if no file provided.
@@ -243,8 +274,8 @@ export async function updatePost(slug, postId, payload) {
 export async function fetchJoinRequests(slug, cursor = null) {
   const qs = new URLSearchParams();
   if (cursor) qs.set("cursor", cursor);
-  const result = await authFetch(`/groups/${slug}/requests?${qs.toString()}`);
-  return { items: result?.data ?? result ?? [], total: result?.meta?.total ?? 0 };
+  const result = await authFetchFull(`/groups/${slug}/requests?${qs.toString()}`);
+  return { items: result?.data ?? [], total: result?.meta?.total ?? 0 };
 }
 
 export async function decideJoinRequest(slug, requestId, approve) {
@@ -708,41 +739,18 @@ export function emailInvites(emails) {
 
 /* -------------------------------- members --------------------------------- */
 
-const ROLE_FILTER = {
-  admins: ["OWNER", "ADMIN"],
-  mods: ["MODERATOR"],
-  members: ["MEMBER"],
-};
-
 export async function fetchMembers(slug, { role = "all", cursor = null } = {}) {
   const qs = new URLSearchParams();
   if (cursor) qs.set("cursor", cursor);
+  qs.set("role", role);
   
-  // Actually, the API doesn't support 'admins' directly mapping to multiple roles natively yet,
-  // but let's assume it accepts a single role or we fetch all and filter client side,
-  // but for proper implementation let's just fetch all and group on frontend OR if the backend supports it:
-  // For now, let's fetch all members since counts require fetching all anyway, or the backend gives counts.
+  const result = await authFetchFull(`/groups/${slug}/members?${qs.toString()}`);
   
-  // Wait, backend `group.routes.js` has `GET /:slug/members`.
-  const result = await authFetch(`/groups/${slug}/members?${qs.toString()}`);
-  
-  const allItems = result?.data ?? result ?? [];
-  let items = allItems;
-  const wanted = ROLE_FILTER[role];
-  if (wanted) {
-    items = items.filter((m) => wanted.includes(m.role));
-  }
-  
-  // Derive counts from allItems
-  const memberCounts = {
-    all: allItems.length,
-    admins: allItems.filter(m => ["OWNER", "ADMIN"].includes(m.role)).length,
-    moderators: allItems.filter(m => m.role === "MODERATOR").length,
-    members: allItems.filter(m => m.role === "MEMBER").length,
-    pendingRequests: 0, // We'll fetch this from requests API if needed, or leave it 0
+  return { 
+    items: result?.data ?? [], 
+    nextCursor: result?.meta?.nextCursor ?? null, 
+    counts: result?.meta?.counts ?? { all: 0, admins: 0, moderators: 0, members: 0, pendingRequests: 0 } 
   };
-
-  return { items, nextCursor: result?.meta?.nextCursor ?? null, counts: memberCounts };
 }
 
 export async function fetchMemberProfile(slug, memberId) {
@@ -766,9 +774,12 @@ export async function changeMemberTier(slug, memberId, tierId) {
   return result?.data ?? result;
 }
 
-export async function setCourseAccess(slug, memberId, courseId, granted) {
-  // Not fully implemented on backend, mock for now
-  return resolve({ ok: true });
+export async function setCourseAccess(slug, userId, courseId, granted) {
+  if (granted) {
+    return grantCourseAccess(slug, courseId, userId);
+  } else {
+    return revokeCourseAccess(slug, courseId, userId);
+  }
 }
 
 export async function removeMember(slug, memberId) {
@@ -792,8 +803,8 @@ export async function declineJoinRequest(slug, requestId) {
   return { ok: true };
 }
 
-export function fetchGeography() {
-  return resolve(mocks.memberGeography);
+export async function fetchGeography(slug) {
+  return authFetch(`/groups/${slug}/members/geography`);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

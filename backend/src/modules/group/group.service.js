@@ -6,6 +6,11 @@ import { prisma } from '../../config/database.js'
 import { logger } from '../../utils/logger.js'
 import { NotFoundError, ForbiddenError, ConflictError } from '../../utils/errors.js'
 import { generateUniqueSlug } from '../../utils/slugify.js'
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+import countriesList from 'i18n-iso-countries';
+countriesList.registerLocale(require('i18n-iso-countries/langs/en.json'));
+
 import { decodeCursor, encodeCursor, buildPaginationMeta } from '../../utils/pagination.js'
 
 class GroupService {
@@ -219,32 +224,135 @@ class GroupService {
    * @param {Object} query - Pagination and filter query
    * @returns {Promise<Object>} Members list and meta
    */
-  async getGroupMembers(groupId, { cursor, limit = 20, role }) {
+  async getGroupMembers(groupId, { cursor, limit = 20, role, search }) {
     const take = parseInt(limit, 10) || 20
     const decodedCursor = decodeCursor(cursor)
 
+    let roleFilter = {}
+    if (role === 'admins') roleFilter = { in: ['OWNER', 'ADMIN'] }
+    else if (role === 'mods') roleFilter = 'MODERATOR'
+    else if (role === 'members') roleFilter = 'MEMBER'
+    else roleFilter = { in: ['OWNER', 'ADMIN', 'MODERATOR', 'MEMBER'] }
+
     const where = {
       groupId,
-      ...(role && { role })
+      role: roleFilter,
+      ...(search && {
+        user: {
+          OR: [
+            { firstName: { contains: search, mode: 'insensitive' } },
+            { lastName: { contains: search, mode: 'insensitive' } },
+            { email: { contains: search, mode: 'insensitive' } },
+          ]
+        }
+      })
     }
 
+    const [members, allCounts, pendingRequests] = await Promise.all([
+      prisma.groupMember.findMany({
+        where,
+        take: take + 1,
+        cursor: decodedCursor ? { id: decodedCursor.id } : undefined,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            select: { 
+              id: true, firstName: true, lastName: true, email: true, avatarUrl: true, bio: true, username: true, lastSeenAt: true, isOnline: true, country: true, countryCode: true, location: true,
+              courseAccess: {
+                where: { course: { groupId } },
+                select: { courseId: true }
+              },
+              _count: {
+                select: {
+                  posts: { where: { groupId } },
+                  comments: { where: { post: { groupId } } }
+                }
+              }
+            }
+          },
+          tier: true
+        }
+      }),
+      prisma.groupMember.groupBy({
+        by: ['role'],
+        where: { groupId },
+        _count: { role: true }
+      }),
+      prisma.joinRequest.count({
+        where: { groupId, status: 'PENDING' }
+      }).catch(() => 0) // catch if joinRequest table is different or doesn't exist
+    ])
+
+    const countsMap = allCounts.reduce((acc, curr) => {
+      acc[curr.role] = curr._count.role
+      return acc
+    }, {})
+
+    const memberCounts = {
+      all: (countsMap.OWNER || 0) + (countsMap.ADMIN || 0) + (countsMap.MODERATOR || 0) + (countsMap.MEMBER || 0),
+      admins: (countsMap.OWNER || 0) + (countsMap.ADMIN || 0),
+      moderators: countsMap.MODERATOR || 0,
+      members: countsMap.MEMBER || 0,
+      pendingRequests
+    }
+
+    const meta = { ...buildPaginationMeta(members, take), counts: memberCounts }
+    const data = members.slice(0, take).map(m => ({ 
+      ...m, 
+      lastActiveAt: m.user?.lastSeenAt || m.createdAt,
+      isOnline: m.user?.isOnline || false,
+      postCount: m.user?._count?.posts || 0,
+      commentCount: m.user?._count?.comments || 0,
+      lifetimeValue: 0,
+      courseAccess: m.user?.courseAccess?.map(c => c.courseId) || [],
+      cursor: encodeCursor({ id: m.id, createdAt: m.createdAt }) 
+    }))
+
+    return { data, meta }
+  }
+
+  /**
+   * Get geography map data for members
+   * @param {string} groupId
+   * @returns {Promise<Object>}
+   */
+  async getGeography(groupId) {
     const members = await prisma.groupMember.findMany({
-      where,
-      take: take + 1,
-      cursor: decodedCursor ? { id: decodedCursor.id } : undefined,
-      orderBy: { createdAt: 'desc' },
-      include: {
+      where: { groupId },
+      select: {
         user: {
-          select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true, bio: true }
-        },
-        tier: true
+          select: { countryCode: true, country: true, location: true }
+        }
       }
     })
 
-    const meta = buildPaginationMeta(members, take)
-    const data = members.slice(0, take).map(m => ({ ...m, cursor: encodeCursor({ id: m.id }) }))
+    const countries = {}
+    for (const m of members) {
+      if (!m.user) continue;
+      let code = m.user.countryCode;
+      let name = m.user.country;
 
-    return { data, meta }
+      if (!code && m.user.location) {
+        const parts = m.user.location.split(',').map(s => s.trim());
+        const lastPart = parts[parts.length - 1];
+        
+        // Try to get country code from the name (e.g., "Ghana" -> "GH", "United States" -> "US")
+        const mappedCode = countriesList.getAlpha2Code(lastPart, 'en');
+        if (mappedCode) {
+          code = mappedCode;
+          name = countriesList.getName(code, 'en'); // Gets official name
+        }
+      }
+
+      if (code && name) {
+        if (!countries[code]) {
+          countries[code] = { name: name, count: 0 }
+        }
+        countries[code].count++
+      }
+    }
+
+    return { total: members.length, countries }
   }
 
   /**
@@ -256,15 +364,16 @@ class GroupService {
    * @returns {Promise<Object>} Updated membership
    */
   async updateMemberRole(groupId, memberId, newRole, actingUserId) {
-    if (memberId === actingUserId) {
-      throw new ForbiddenError('Cannot change your own role')
-    }
-
-    const targetMember = await prisma.groupMember.findUnique({
-      where: { groupId_userId: { groupId, userId: memberId } }
+    const targetMember = await prisma.groupMember.findFirst({
+      where: { id: memberId, groupId }
     })
 
     if (!targetMember) throw new NotFoundError('Member not found')
+    
+    if (targetMember.userId === actingUserId) {
+      throw new ForbiddenError('Cannot change your own role')
+    }
+    
     if (targetMember.role === 'OWNER') {
       throw new ForbiddenError('Cannot change owner role')
     }
@@ -281,7 +390,7 @@ class GroupService {
     }
 
     return prisma.groupMember.update({
-      where: { groupId_userId: { groupId, userId: memberId } },
+      where: { id: memberId },
       data: { role: newRole }
     })
   }
@@ -304,7 +413,7 @@ class GroupService {
     }
 
     return prisma.groupMember.update({
-      where: { groupId_userId: { groupId, userId: memberId } },
+      where: { id: memberId },
       data: { tierId }
     })
   }
@@ -317,8 +426,8 @@ class GroupService {
    * @returns {Promise<void>}
    */
   async removeMember(groupId, memberId, actingUserId) {
-    const targetMember = await prisma.groupMember.findUnique({
-      where: { groupId_userId: { groupId, userId: memberId } }
+    const targetMember = await prisma.groupMember.findFirst({
+      where: { id: memberId, groupId }
     })
 
     if (!targetMember) throw new NotFoundError('Member not found')
@@ -327,7 +436,7 @@ class GroupService {
       where: { groupId_userId: { groupId, userId: actingUserId } }
     })
 
-    if (memberId === actingUserId) {
+    if (targetMember.userId === actingUserId) {
       if (targetMember.role === 'OWNER') {
         throw new ForbiddenError('Owner cannot leave group without transferring ownership')
       }
@@ -340,7 +449,7 @@ class GroupService {
 
     await prisma.$transaction(async (tx) => {
       await tx.groupMember.delete({
-        where: { groupId_userId: { groupId, userId: memberId } }
+        where: { id: memberId }
       })
       
       await tx.group.update({

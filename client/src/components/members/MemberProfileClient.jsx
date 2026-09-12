@@ -24,12 +24,17 @@ export default function MemberProfileClient({ memberId }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetchMemberProfile(slug, memberId)
-      .then((m) => { if (!cancelled) setMember(m); })
-      .catch((e) => { if (!cancelled) setError(e.message); });
-
-    // Show their posts — in prod you'd filter by authorId; here we use all posts as a sample
-    fetchPosts(slug, {}).then((r) => { if (!cancelled) setPosts(r.items.filter(p => p.author?.id === memberId).slice(0, 5)); });
+    Promise.all([
+      fetchMemberProfile(slug, memberId),
+      fetchPosts(slug, {})
+    ])
+    .then(([m, r]) => {
+      if (!cancelled) {
+        setMember(m);
+        setPosts(r.items.filter(p => p.author?.id === m.user.id).slice(0, 5));
+      }
+    })
+    .catch((e) => { if (!cancelled) setError(e.message); });
 
     return () => { cancelled = true; };
   }, [slug, memberId]);
@@ -90,10 +95,19 @@ export default function MemberProfileClient({ memberId }) {
           )}
 
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[13px] text-sand-700">
-            {user.country && (
+            {(user.country || user.location) && (
               <span className="flex items-center gap-1.5">
-                <span>{flagEmoji(user.countryCode)}</span>
-                {user.country}
+                {user.country ? (
+                  <>
+                    <span>{flagEmoji(user.countryCode)}</span>
+                    {user.country}
+                  </>
+                ) : (
+                  <>
+                    <MapPin className="w-3.5 h-3.5 shrink-0" />
+                    {user.location}
+                  </>
+                )}
               </span>
             )}
             <span className="flex items-center gap-1.5">

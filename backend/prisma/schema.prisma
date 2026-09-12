@@ -119,6 +119,8 @@ model User {
   bio             String?   @db.VarChar(500)
   username        String?   @unique @db.VarChar(50)
   location        String?   @db.VarChar(100)
+  country         String?   @db.VarChar(100)
+  countryCode     String?   @map("country_code") @db.VarChar(2)
   socialLinks     Json?     @map("social_links")
   isEmailVerified Boolean   @default(false) @map("is_email_verified")
   lastLoginAt     DateTime? @map("last_login_at") @db.Timestamptz()

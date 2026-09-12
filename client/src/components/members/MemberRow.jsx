@@ -42,11 +42,16 @@ export default function MemberRow({ member, onOpenMembership }) {
         </Link>
         <StatusDot tone={role.tone} label={role.label} />
         <p className="text-meta text-sand-700 truncate">
-          {`${flagEmoji(user.countryCode)} ${user.countryCode} @${user.handle}`}
+          {user.countryCode 
+            ? `${flagEmoji(user.countryCode)} ${user.countryCode} ` 
+            : user.location 
+              ? `${user.location} ` 
+              : ""}
+          @{user.username || user.firstName.toLowerCase()}
         </p>
       </div>
 
-      <p className="text-ui text-sand-800 line-clamp-2">{member.bio}</p>
+      <p className="text-ui text-sand-800 line-clamp-2">{user.bio}</p>
 
       <div className="lg:text-right">
         <p className="text-meta text-sand-700">{member.tier?.name ?? "No tier"}</p>

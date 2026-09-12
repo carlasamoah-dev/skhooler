@@ -96,7 +96,19 @@ export async function deleteGroup(req, res, next) {
 export async function getMembers(req, res, next) {
   try {
     const result = await groupService.getGroupMembers(req.group.id, req.query)
-    sendSuccess(res, result.data, 200, result.meta)
+    sendSuccess(res, { data: result.data, meta: result.meta })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * Get geography/locations of group members
+ */
+export async function getGeography(req, res, next) {
+  try {
+    const geography = await groupService.getGeography(req.group.id)
+    sendSuccess(res, geography)
   } catch (error) {
     next(error)
   }

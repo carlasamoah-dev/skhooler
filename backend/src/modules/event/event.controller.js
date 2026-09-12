@@ -39,7 +39,7 @@ export async function getEvents(req, res, next) {
     const query = req.query;
 
     const result = await eventService.getEvents(groupId, userId, role, query);
-    return sendSuccess(res, result.data, 200, result.meta);
+    return sendSuccess(res, { data: result.data, meta: result.meta });
   } catch (error) {
     next(error);
   }
@@ -159,7 +159,7 @@ export async function getAttendees(req, res, next) {
     const query = req.query;
 
     const result = await eventService.getEventAttendees(groupId, eventId, query);
-    return sendSuccess(res, result.data, 200, result.meta);
+    return sendSuccess(res, { data: result.data, meta: result.meta });
   } catch (error) {
     next(error);
   }

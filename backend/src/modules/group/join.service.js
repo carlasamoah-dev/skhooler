@@ -158,7 +158,7 @@ class JoinService {
       orderBy: { createdAt: 'desc' },
       include: {
         user: {
-          select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true }
+          select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true, country: true, countryCode: true }
         },
         answers: {
           include: {
@@ -173,8 +173,17 @@ class JoinService {
       requests.pop()
     }
 
+    const data = requests.map(r => ({
+      ...r,
+      answers: r.answers.map(a => ({
+        questionId: a.questionId,
+        question: a.question?.question || '',
+        answer: a.answer
+      }))
+    }))
+
     return {
-      data: requests,
+      data,
       meta
     }
   }
@@ -293,7 +302,23 @@ class JoinService {
             email: true,
             avatarUrl: true,
             bio: true,
-            createdAt: true
+            username: true,
+            lastSeenAt: true,
+            country: true,
+            countryCode: true,
+            location: true,
+            isOnline: true,
+            createdAt: true,
+            courseAccess: {
+              where: { course: { groupId } },
+              select: { courseId: true }
+            },
+            _count: {
+              select: {
+                posts: { where: { groupId } },
+                comments: { where: { post: { groupId } } }
+              }
+            }
           }
         },
         tier: true
@@ -302,7 +327,15 @@ class JoinService {
 
     if (!member) throw new NotFoundError('Member not found')
     
-    return member
+    return {
+      ...member,
+      lastActiveAt: member.user?.lastSeenAt || member.createdAt,
+      isOnline: member.user?.isOnline || false,
+      postCount: member.user?._count?.posts || 0,
+      commentCount: member.user?._count?.comments || 0,
+      lifetimeValue: 0,
+      courseAccess: member.user?.courseAccess?.map(c => c.courseId) || []
+    }
   }
 }
 

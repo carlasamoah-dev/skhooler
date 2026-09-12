@@ -63,7 +63,7 @@ export default function MembersClient() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchCourses().then((c) => !cancelled && setCourses(c));
+    fetchCourses(slug).then((c) => !cancelled && setCourses(c));
     if (mayApprove) fetchJoinRequests(slug).then((r) => !cancelled && setRequests(r.items));
     return () => {
       cancelled = true;
@@ -73,11 +73,11 @@ export default function MembersClient() {
   useEffect(() => {
     if (tab !== "map" || geography) return undefined;
     let cancelled = false;
-    fetchGeography().then((g) => !cancelled && setGeography(g));
+    fetchGeography(slug).then((g) => !cancelled && setGeography(g));
     return () => {
       cancelled = true;
     };
-  }, [tab, geography]);
+  }, [tab, geography, slug]);
 
   // Roles filter through ?role=; the two panel tabs use ?tab=.
   const selectTab = (next) => {

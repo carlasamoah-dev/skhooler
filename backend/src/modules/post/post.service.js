@@ -165,7 +165,7 @@ class PostService {
     let nextCursor = null;
     if (posts.length > limit) {
       const nextItem = posts.pop();
-      nextCursor = encodeCursor(nextItem.id);
+      nextCursor = encodeCursor(nextItem);
     }
 
     const data = posts.map(post => {

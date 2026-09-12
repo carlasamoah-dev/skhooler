@@ -124,7 +124,7 @@ export const inviteByEmailSchema = z.object({
 export const membersQuerySchema = z.object({
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
-  role: z.enum(['OWNER', 'ADMIN', 'MODERATOR', 'MEMBER']).optional(),
+  role: z.enum(['all', 'admins', 'mods', 'members']).optional(),
   search: z.string().trim().max(100).optional(),
 })
 

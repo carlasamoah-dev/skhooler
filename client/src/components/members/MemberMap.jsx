@@ -78,7 +78,8 @@ export default function MemberMap({ geography }) {
 
     paths = atlas.features.map((feature) => {
       const name = feature.properties.name;
-      const count = geography.countries[name] ?? 0;
+      const countryData = Object.values(geography.countries || {}).find(c => c.name === name);
+      const count = countryData?.count ?? 0;
       return { id: feature.id ?? name, name, count, d: path(feature) };
     });
   }

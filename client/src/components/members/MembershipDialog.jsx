@@ -61,7 +61,7 @@ export default function MembershipDialog({ open, member, tiers = [], courses = [
       for (const course of courses) {
         const had = (member.courseAccess ?? []).includes(course.id);
         const has = access.has(course.id);
-        if (had !== has) await setCourseAccess(slug, member.id, course.id, has);
+        if (had !== has) await setCourseAccess(slug, user.id, course.id, has);
       }
       await onChanged?.();
       onClose?.();
@@ -82,7 +82,7 @@ export default function MembershipDialog({ open, member, tiers = [], courses = [
 
       <div className="mt-6 grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
         <Well label="Email">{user.email}</Well>
-        <Well label="Joined">{`${joined} · ${member.joinedVia}`}</Well>
+        <Well label="Joined">{member.joinedVia ? `${joined} · ${member.joinedVia}` : joined}</Well>
 
         {/* Role — only Admins/Owners can change roles */}
         <Well
@@ -113,7 +113,7 @@ export default function MembershipDialog({ open, member, tiers = [], courses = [
 
         <Well label="Posts · comments">{`${member.postCount} · ${member.commentCount}`}</Well>
         <Well label="Lifetime value">{`$${member.lifetimeValue}`}</Well>
-        <Well label="Country">{`${flagEmoji(user.countryCode)} ${user.country}`}</Well>
+        <Well label="Location">{user.country ? `${flagEmoji(user.countryCode)} ${user.country}` : user.location || "Not specified"}</Well>
         <Well label="Last active">{relativeTime(member.lastActiveAt)}</Well>
       </div>
 

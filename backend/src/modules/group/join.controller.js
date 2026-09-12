@@ -35,7 +35,7 @@ export async function getJoinRequests(req, res, next) {
     
     const result = await joinService.getJoinRequests(groupId, req.query)
     
-    return sendSuccess(res, result.data, 200, result.meta)
+    return sendSuccess(res, { data: result.data, meta: result.meta })
   } catch (error) {
     next(error)
   }

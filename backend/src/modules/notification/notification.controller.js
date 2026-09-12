@@ -17,7 +17,7 @@ export async function getNotifications(req, res, next) {
     const userId = req.user.id
     const query = req.query
     const result = await notificationService.getNotifications(userId, query)
-    return sendSuccess(res, result.data, 200, result.meta)
+    return sendSuccess(res, { data: result.data, meta: result.meta })
   } catch (error) {
     next(error)
   }

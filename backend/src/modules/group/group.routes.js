@@ -25,6 +25,7 @@ router.patch('/:slug/pricing', authenticate, loadGroup, requireOwner, validateBo
 router.delete('/:slug', authenticate, loadGroup, requireOwner, groupController.deleteGroup)
 
 // ──── Members ────
+router.get('/:slug/members/geography', authenticate, loadGroup, requireMembership(), groupController.getGeography)
 router.get('/:slug/members', authenticate, loadGroup, requireMembership(), validateQuery(schemas.membersQuerySchema), groupController.getMembers)
 router.patch('/:slug/members/:memberId/role', authenticate, loadGroup, requireAdmin, validateBody(schemas.updateMemberRoleSchema), groupController.updateMemberRole)
 router.patch('/:slug/members/:memberId/tier', authenticate, loadGroup, requireAdmin, validateBody(schemas.updateMemberTierSchema), groupController.updateMemberTier)
