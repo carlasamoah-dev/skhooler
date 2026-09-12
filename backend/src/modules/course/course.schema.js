@@ -22,9 +22,17 @@ export const updateModuleSchema = createModuleSchema.partial();
 export const createLessonSchema = z.object({
   title: z.string().min(1).max(150),
   content: z.string().optional().nullable(),
+  videoUrl: z.string().url().optional().nullable(),
   videoAssetId: z.string().max(100).optional().nullable(),
   videoPlaybackId: z.string().max(100).optional().nullable(),
   videoDurationSeconds: z.number().int().positive().optional().nullable(),
+  transcript: z.string().optional().nullable(),
+  chapters: z.array(
+    z.object({
+      title: z.string().min(1).max(100),
+      startSeconds: z.number().int().min(0)
+    })
+  ).optional().nullable(),
   attachments: z.array(
     z.object({
       name: z.string(),

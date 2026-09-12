@@ -83,8 +83,8 @@ export default function GeneralPanel({ group, onSaved }) {
       });
       
       if (updated.slug !== group.slug) {
-        // Force full navigation to new slug
-        window.location.href = `/${updated.slug}/settings/general`;
+        // Force navigation to new slug
+        router.push(`/${updated.slug}/settings/general`);
         return;
       }
 

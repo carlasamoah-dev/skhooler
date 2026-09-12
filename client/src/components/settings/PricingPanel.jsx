@@ -38,7 +38,7 @@ export default function PricingPanel({ group, tiers, onTiers, onSaved }) {
     setFormError(null);
     setSaved(false);
     try {
-      const updated = await updatePricing({
+      const updated = await updatePricing(group.slug, {
         pricingModel: values.pricingModel,
         price: values.price === "" ? null : Number(values.price),
         billingInterval: values.billingInterval || null,
@@ -121,12 +121,12 @@ export default function PricingPanel({ group, tiers, onTiers, onSaved }) {
         ) : null}
       </Panel>
 
-      <TiersCard tiers={tiers} onTiers={onTiers} />
+      <TiersCard group={group} tiers={tiers} onTiers={onTiers} />
     </>
   );
 }
 
-function TiersCard({ tiers, onTiers }) {
+function TiersCard({ group, tiers, onTiers }) {
   const [adding, setAdding] = useState("");
 
   return (
@@ -144,7 +144,7 @@ function TiersCard({ tiers, onTiers }) {
           <Button
             disabled={!adding.trim()}
             onClick={async () => {
-              await addTier(adding.trim());
+              await addTier(group.slug, adding.trim());
               setAdding("");
               onTiers?.();
             }}
@@ -172,7 +172,7 @@ function TiersCard({ tiers, onTiers }) {
                 onClick={async () => {
                   const name = window.prompt("Rename tier", tier.name);
                   if (name?.trim()) {
-                    await renameTier(tier.id, name.trim());
+                    await renameTier(group.slug, tier.id, name.trim());
                     onTiers?.();
                   }
                 }}
@@ -183,8 +183,10 @@ function TiersCard({ tiers, onTiers }) {
                 variant="ghost"
                 size="sm"
                 onClick={async () => {
-                  await deleteTier(tier.id);
-                  onTiers?.();
+                  if (window.confirm("Are you sure you want to delete this tier?")) {
+                    await deleteTier(group.slug, tier.id);
+                    onTiers?.();
+                  }
                 }}
               >
                 Delete

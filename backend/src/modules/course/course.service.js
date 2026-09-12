@@ -1,6 +1,12 @@
 import { prisma } from '../../config/database.js';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../../utils/errors.js';
 
+function emitCourseEvent(groupId, eventName, payload) {
+  import('../../config/socket.js').then(({ getIO }) => {
+    getIO()?.to(`group:${groupId}`).emit(eventName, payload);
+  }).catch(console.error);
+}
+
 /**
  * Generate a unique slug for a given string
  * @param {string} title
@@ -48,7 +54,7 @@ class CourseService {
     });
     const position = (maxPosition._max.position || 0) + 1;
 
-    return prisma.course.create({
+    const course = await prisma.course.create({
       data: {
         ...data,
         groupId,
@@ -56,6 +62,9 @@ class CourseService {
         position
       }
     });
+
+    emitCourseEvent(groupId, 'course:created', { course });
+    return course;
   }
 
   /**
@@ -107,8 +116,18 @@ class CourseService {
       }
 
       let progressPercentage = 0;
+      let totalLessons = 0;
+
+      // Always compute lesson count for display on course cards (admins + members)
+      totalLessons = await prisma.lesson.count({
+        where: {
+          module: { courseId: course.id, deletedAt: null },
+          deletedAt: null
+        }
+      });
+
       if (hasAccess) {
-        const totalLessons = await prisma.lesson.count({
+        const publishedLessons = await prisma.lesson.count({
           where: {
             module: { courseId: course.id, isPublished: true, deletedAt: null },
             isPublished: true,
@@ -116,7 +135,7 @@ class CourseService {
           }
         });
         
-        if (totalLessons > 0) {
+        if (publishedLessons > 0) {
           const completedLessons = await prisma.lessonProgress.count({
             where: {
               userId,
@@ -128,15 +147,17 @@ class CourseService {
               }
             }
           });
-          progressPercentage = Math.round((completedLessons / totalLessons) * 100);
+          progressPercentage = Math.round((completedLessons / publishedLessons) * 100);
         }
       }
 
       result.push({
         ...course,
         hasAccess,
-        progressPercentage
+        progressPercentage,
+        lessonsCount: totalLessons,
       });
+
     }
 
     return result;
@@ -213,7 +234,36 @@ class CourseService {
 
     const modules = await prisma.courseModule.findMany(modulesQuery);
 
-    return { ...course, modules, hasAccess: true };
+    let moduleCount = modules.length;
+    let lessonCount = 0;
+    let completedCount = 0;
+
+    const formattedModules = modules.map(mod => {
+      let modLessons = mod.lessons || [];
+      lessonCount += modLessons.length;
+      
+      const mappedLessons = modLessons.map(les => {
+        const isCompleted = les.progress && les.progress.length > 0 ? les.progress[0].isCompleted : false;
+        if (isCompleted) completedCount++;
+        return {
+          ...les,
+          progress: les.progress && les.progress.length > 0 ? les.progress[0] : null
+        };
+      });
+
+      return { ...mod, lessons: mappedLessons };
+    });
+
+    const progressPercent = lessonCount > 0 ? Math.round((completedCount / lessonCount) * 100) : 0;
+
+    return { 
+      ...course, 
+      modules: formattedModules, 
+      hasAccess: true,
+      moduleCount,
+      lessonCount,
+      progressPercent
+    };
   }
 
   /**
@@ -246,13 +296,16 @@ class CourseService {
       if (!tier) throw new BadRequestError('Tier does not belong to group');
     }
 
-    return prisma.course.update({
+    const updatedCourse = await prisma.course.update({
       where: { id: courseId },
       data: {
         ...data,
         slug: newSlug
       }
     });
+
+    emitCourseEvent(groupId, 'course:updated', { course: updatedCourse });
+    return updatedCourse;
   }
 
   /**
@@ -271,6 +324,8 @@ class CourseService {
       where: { id: courseId },
       data: { deletedAt: new Date() }
     });
+
+    emitCourseEvent(groupId, 'course:deleted', { courseId });
   }
 
   /**
@@ -308,13 +363,16 @@ class CourseService {
     });
     const position = (maxPosition._max.position || 0) + 1;
 
-    return prisma.courseModule.create({
+    const newModule = await prisma.courseModule.create({
       data: {
         ...data,
         courseId,
         position
       }
     });
+
+    emitCourseEvent(course.groupId, 'course:updated', { courseId });
+    return newModule;
   }
 
   /**
@@ -325,14 +383,18 @@ class CourseService {
    */
   async updateModule(moduleId, data) {
     const module = await prisma.courseModule.findFirst({
-      where: { id: moduleId, deletedAt: null }
+      where: { id: moduleId, deletedAt: null },
+      include: { course: true }
     });
     if (!module) throw new NotFoundError('CourseModule');
 
-    return prisma.courseModule.update({
+    const updatedModule = await prisma.courseModule.update({
       where: { id: moduleId },
       data
     });
+
+    emitCourseEvent(module.course.groupId, 'course:updated', { courseId: module.courseId });
+    return updatedModule;
   }
 
   /**
@@ -342,7 +404,8 @@ class CourseService {
    */
   async deleteModule(moduleId) {
     const module = await prisma.courseModule.findFirst({
-      where: { id: moduleId, deletedAt: null }
+      where: { id: moduleId, deletedAt: null },
+      include: { course: true }
     });
     if (!module) throw new NotFoundError('CourseModule');
 
@@ -350,6 +413,8 @@ class CourseService {
       where: { id: moduleId },
       data: { deletedAt: new Date() }
     });
+
+    emitCourseEvent(module.course.groupId, 'course:updated', { courseId: module.courseId });
   }
 
   /**
@@ -377,7 +442,8 @@ class CourseService {
    */
   async createLesson(moduleId, data) {
     const module = await prisma.courseModule.findFirst({
-      where: { id: moduleId, deletedAt: null }
+      where: { id: moduleId, deletedAt: null },
+      include: { course: true }
     });
     if (!module) throw new NotFoundError('CourseModule');
 
@@ -394,7 +460,7 @@ class CourseService {
     });
     const position = (maxPosition._max.position || 0) + 1;
 
-    return prisma.lesson.create({
+    const newLesson = await prisma.lesson.create({
       data: {
         ...data,
         moduleId,
@@ -402,6 +468,9 @@ class CourseService {
         position
       }
     });
+
+    emitCourseEvent(module.course.groupId, 'course:updated', { courseId: module.courseId });
+    return newLesson;
   }
 
   /**
@@ -459,7 +528,54 @@ class CourseService {
       throw new ForbiddenError('Course access required');
     }
 
-    return lesson;
+    const modulesQuery = {
+      where: { courseId: course.id, deletedAt: null },
+      orderBy: { position: 'asc' },
+      include: {
+        lessons: {
+          where: { deletedAt: null },
+          orderBy: { position: 'asc' }
+        }
+      }
+    };
+
+    if (!isAdmin) {
+      modulesQuery.where.isPublished = true;
+      modulesQuery.include.lessons.where.isPublished = true;
+    }
+
+    const allModules = await prisma.courseModule.findMany(modulesQuery);
+    
+    // Flatten lessons into a single array to determine index, next, and previous
+    let allLessons = [];
+    for (const mod of allModules) {
+      for (const les of mod.lessons) {
+        allLessons.push(les);
+      }
+    }
+
+    const currentIndex = allLessons.findIndex((l) => l.id === lesson.id);
+    let previousLessonId = null;
+    let nextLessonId = null;
+    let lessonNumber = 0;
+
+    if (currentIndex !== -1) {
+      lessonNumber = currentIndex + 1;
+      if (currentIndex > 0) previousLessonId = allLessons[currentIndex - 1].id;
+      if (currentIndex < allLessons.length - 1) nextLessonId = allLessons[currentIndex + 1].id;
+    } else if (isAdmin) {
+      // If the lesson isn't in the flattened array (e.g. it's unpublished and we only fetched published? Wait, isAdmin fetches everything)
+      lessonNumber = 1;
+    }
+
+    return {
+      ...lesson,
+      moduleTitle: lesson.module.title,
+      lessonNumber,
+      previousLessonId,
+      nextLessonId,
+      progress: lesson.progress && lesson.progress.length > 0 ? lesson.progress[0] : null
+    };
   }
 
   /**
@@ -470,7 +586,8 @@ class CourseService {
    */
   async updateLesson(lessonId, data) {
     const lesson = await prisma.lesson.findFirst({
-      where: { id: lessonId, deletedAt: null }
+      where: { id: lessonId, deletedAt: null },
+      include: { module: { include: { course: true } } }
     });
     if (!lesson) throw new NotFoundError('Lesson');
 
@@ -484,13 +601,16 @@ class CourseService {
       });
     }
 
-    return prisma.lesson.update({
+    const updatedLesson = await prisma.lesson.update({
       where: { id: lessonId },
       data: {
         ...data,
         slug: newSlug
       }
     });
+
+    emitCourseEvent(lesson.module.course.groupId, 'course:updated', { courseId: lesson.module.courseId });
+    return updatedLesson;
   }
 
   /**
@@ -500,7 +620,8 @@ class CourseService {
    */
   async deleteLesson(lessonId) {
     const lesson = await prisma.lesson.findFirst({
-      where: { id: lessonId, deletedAt: null }
+      where: { id: lessonId, deletedAt: null },
+      include: { module: { include: { course: true } } }
     });
     if (!lesson) throw new NotFoundError('Lesson');
 
@@ -508,6 +629,8 @@ class CourseService {
       where: { id: lessonId },
       data: { deletedAt: new Date() }
     });
+
+    emitCourseEvent(lesson.module.course.groupId, 'course:updated', { courseId: lesson.module.courseId });
   }
 
   /**
@@ -569,12 +692,12 @@ class CourseService {
   async getCourseMembersAccess(courseId, { cursor, limit = 50 }) {
     const args = {
       where: { courseId },
-      take: limit,
+      take: Number(limit),
       include: {
         user: true,
-        grantedBy: true
+        granter: true
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { grantedAt: 'desc' }
     };
 
     if (cursor) {
@@ -582,7 +705,14 @@ class CourseService {
       args.skip = 1;
     }
 
-    return prisma.courseMemberAccess.findMany(args);
+    const records = await prisma.courseMemberAccess.findMany(args);
+
+    // Map `granter` relation back to `grantedBy` so API consumers get a consistent shape
+    return records.map((r) => ({
+      ...r,
+      grantedBy: r.granter ?? null,
+      granter: undefined
+    }));
   }
 }
 

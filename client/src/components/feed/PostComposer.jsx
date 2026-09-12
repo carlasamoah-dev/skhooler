@@ -43,7 +43,7 @@ export default function PostComposer() {
         <div className="w-16 h-16 rounded-full bg-sand-100 flex items-center justify-center mb-4">
           <Lock className="w-7 h-7 text-sand-400" />
         </div>
-        <h2 className="text-xl font-display font-extrabold text-ink mb-2">Members can't create posts</h2>
+        <h2 className="text-xl font-display font-extrabold text-ink mb-2">Members can&apos;t create posts</h2>
         <p className="text-sand-600 max-w-sm mb-6">
           Only Moderators, Admins, and the Owner can publish posts in this community.
         </p>

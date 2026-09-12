@@ -6,7 +6,7 @@ import { useGroupStore } from "@/store/useGroupStore";
 import { RadioCard, Select } from "@/components/ui";
 import { updateCourse } from "@/lib/api";
 
-export default function CourseSettingsModal({ open, onClose, course, onSaved }) {
+export default function CourseSettingsModal({ open, onClose, course, onSaved, slug }) {
   const { tiers } = useGroupStore();
 
   // Form state
@@ -18,6 +18,7 @@ export default function CourseSettingsModal({ open, onClose, course, onSaved }) 
   const [requiredTierId, setRequiredTierId] = useState(course?.requiredTierId || "");
   const [isPublished, setIsPublished] = useState(course?.isPublished || false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState(""); // "" | "uploading" | "saving"
   const [error, setError] = useState(null);
 
   const coverRef = useRef(null);
@@ -27,6 +28,7 @@ export default function CourseSettingsModal({ open, onClose, course, onSaved }) 
       setTitle(course.title || "");
       setDescription(course.description || "");
       setCoverPreview(course.coverUrl || null);
+      setCoverFile(null);
       setAccessType(course.accessType || "OPEN");
       setRequiredTierId(course.requiredTierId || "");
       setIsPublished(course.isPublished || false);
@@ -50,10 +52,20 @@ export default function CourseSettingsModal({ open, onClose, course, onSaved }) 
     setIsSubmitting(true);
     
     try {
-      const updated = await updateCourse(course.id, {
+      // 1. Upload new cover image if one was selected
+      let coverUrl = course?.coverUrl ?? null;
+      if (coverFile) {
+        setUploadStatus("uploading");
+        const { uploadImage } = await import("@/lib/api");
+        coverUrl = await uploadImage(coverFile, "course-covers");
+      }
+
+      // 2. Save all settings via real API
+      setUploadStatus("saving");
+      const updated = await updateCourse(slug, course.id, {
         title: title.trim(),
-        description: description.trim(),
-        coverUrl: coverPreview,
+        description: description.trim() || null,
+        coverUrl,
         accessType,
         requiredTierId: accessType === "TIER_LOCKED" ? requiredTierId : null,
         isPublished,
@@ -65,8 +77,10 @@ export default function CourseSettingsModal({ open, onClose, course, onSaved }) 
       setError(err.message || "Failed to save settings.");
     } finally {
       setIsSubmitting(false);
+      setUploadStatus("");
     }
   };
+
 
   if (!open || !course) return null;
 
@@ -160,7 +174,14 @@ export default function CourseSettingsModal({ open, onClose, course, onSaved }) 
         <div className="px-6 pb-6 pt-4 shrink-0 border-t border-divider flex items-center justify-end gap-3">
           <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
           <button type="submit" disabled={!title.trim() || isSubmitting} onClick={handleSubmit} className="btn btn-primary disabled:opacity-40 gap-2">
-            {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : <><Settings className="w-4 h-4" /> Save settings</>}
+          {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {uploadStatus === "uploading" ? "Uploading image..." : "Saving..."}
+              </>
+            ) : (
+              <><Settings className="w-4 h-4" /> Save settings</>
+            )}
           </button>
         </div>
       </div>

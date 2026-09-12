@@ -16,6 +16,7 @@ let joinQuestions = structuredClone(mocks.joinQuestions);
 let preferences = structuredClone(mocks.notificationPreferences);
 const invites = structuredClone(mocks.invites);
 
+
 /**
  * The real endpoint defaults to 20 per page. The seed data holds four posts, so
  * the mock pages them two at a time and the feed's pagination is exercised
@@ -35,6 +36,7 @@ export async function authFetch(path, options = {}, retry = true) {
   let token = getToken();
   let res = await fetch(`${API_URL}${path}`, {
     ...options,
+    credentials: "include",
     cache: "no-store",
     headers: {
       "Content-Type": "application/json",
@@ -238,13 +240,17 @@ export async function updatePost(slug, postId, payload) {
 
 /* ------------------------------- sidebar --------------------------------- */
 
-export function fetchJoinRequests() {
-  return resolve({ items: joinRequests, total: joinRequests.length });
+export async function fetchJoinRequests(slug, cursor = null) {
+  const qs = new URLSearchParams();
+  if (cursor) qs.set("cursor", cursor);
+  const result = await authFetch(`/groups/${slug}/requests?${qs.toString()}`);
+  return { items: result?.data ?? result ?? [], total: result?.meta?.total ?? 0 };
 }
 
-export function decideJoinRequest(requestId) {
-  joinRequests = joinRequests.filter((r) => r.id !== requestId);
-  return resolve({ ok: true });
+export async function decideJoinRequest(slug, requestId, approve) {
+  const action = approve ? "approve" : "decline";
+  await authFetch(`/groups/${slug}/requests/${requestId}/${action}`, { method: "POST" });
+  return { ok: true };
 }
 
 /** The soonest event that has not been cancelled. */
@@ -276,93 +282,187 @@ export function rsvpEvent(eventId, status) {
 
 /* ------------------------------- classroom -------------------------------- */
 
-const courses = structuredClone(mocks.courses);
-const courseDetail = structuredClone(mocks.courseDetail);
-const lessonDetail = structuredClone(mocks.lesson);
-
-export function fetchCourses() {
-  return resolve(courses);
-}
-
-export function createCourse(payload) {
-  const newCourse = {
-    id: `course-${Date.now()}`,
-    ...payload,
-    isPublished: false,
-    moduleCount: 0,
-    lessonCount: 0,
-    progressPercent: 0,
-    modules: [],
-  };
-  courses.unshift(newCourse);
-  return resolve(newCourse);
-}
-
-export function updateCourse(courseId, payload) {
-  const index = courses.findIndex(c => c.id === courseId);
-  if (index === -1) return Promise.reject(new Error("Course not found"));
-  courses[index] = { ...courses[index], ...payload };
-  return resolve(courses[index]);
+/**
+ * Fetch all courses for a community.
+ * @param {string} slug - community slug
+ */
+export async function fetchCourses(slug) {
+  return authFetch(`/groups/${slug}/courses`);
 }
 
 /**
- * Only one course carries a module tree in the seed data. The others resolve
- * with `modules: null`, which the classroom surfaces rather than faking.
+ * Create a new course.
+ * @param {string} slug - community slug
+ * @param {{ title, description, coverUrl, accessType, requiredTierId, isPublished }} payload
  */
-export function fetchCourse(courseSlug) {
-  const course = courses.find((c) => c.slug === courseSlug);
-  if (!course) return Promise.reject(new Error("That course no longer exists."));
-  
-  // If it was created dynamically during this session, it has modules: []
-  if (course.modules !== undefined) return resolve(course);
-  
-  if (course.slug !== courseDetail.slug) return resolve({ ...course, modules: null });
-  return resolve({ ...course, modules: courseDetail.modules });
-}
-
-/** Flattens the module tree so prev/next can walk it. */
-function lessonOrder() {
-  return courseDetail.modules.flatMap((m) => m.lessons.map((l) => ({ ...l, moduleId: m.id, moduleTitle: m.title })));
-}
-
-export function fetchLesson(lessonId) {
-  const order = lessonOrder();
-  const index = order.findIndex((l) => l.id === lessonId);
-  if (index === -1) return Promise.reject(new Error("That lesson no longer exists."));
-
-  const entry = order[index];
-  // Only one lesson carries full body copy; the rest reuse its shape.
-  const detail = entry.id === lessonDetail.id ? lessonDetail : null;
-
-  return resolve({
-    ...entry,
-    lessonNumber: courseDetail.modules.find((m) => m.id === entry.moduleId).lessons.findIndex((l) => l.id === entry.id) + 1,
-    content: detail?.content ?? null,
-    videoPlaybackId: detail?.videoPlaybackId ?? `mock-playback-${entry.id}`,
-    chapters: detail?.chapters ?? [],
-    attachments: detail?.attachments ?? [],
-    previousLessonId: index > 0 ? order[index - 1].id : null,
-    nextLessonId: index < order.length - 1 ? order[index + 1].id : null,
+export async function createCourse(slug, payload) {
+  return authFetch(`/groups/${slug}/courses`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
 }
 
-export function setLessonProgress(lessonId, isCompleted) {
-  for (const group of courseDetail.modules) {
-    const lesson = group.lessons.find((l) => l.id === lessonId);
-    if (!lesson) continue;
-    lesson.progress = { ...lesson.progress, isCompleted };
-  }
-
-  // The course percentage is derived, so the card and the sidebar cannot drift.
-  const all = courseDetail.modules.flatMap((m) => m.lessons);
-  const done = all.filter((l) => l.progress?.isCompleted).length;
-  const percent = Math.round((done / all.length) * 100);
-  const card = courses.find((c) => c.slug === courseDetail.slug);
-  if (card) card.progressPercent = percent;
-  courseDetail.progressPercent = percent;
-
-  return resolve({ isCompleted, progressPercent: percent });
+/**
+ * Update a course.
+ * @param {string} slug - community slug
+ * @param {string} courseId - UUID
+ * @param {object} payload - partial course fields
+ */
+export async function updateCourse(slug, courseId, payload) {
+  return authFetch(`/groups/${slug}/courses/${courseId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
 }
+
+/**
+ * Fetch a single course with its full module+lesson tree.
+ * @param {string} slug - community slug
+ * @param {string} courseSlug - course slug string
+ */
+export async function fetchCourse(slug, courseSlug) {
+  return authFetch(`/groups/${slug}/courses/${courseSlug}`);
+}
+
+/**
+ * Fetch a single lesson with progress data.
+ * @param {string} slug - community slug
+ * @param {string} lessonId - UUID
+ */
+export async function fetchLesson(slug, lessonId) {
+  return authFetch(`/groups/${slug}/courses/lessons/${lessonId}`);
+}
+
+/**
+ * Update lesson progress (mark complete / save video position).
+ * @param {string} slug - community slug
+ * @param {string} lessonId - UUID
+ * @param {{ isCompleted?: boolean, lastPositionSeconds?: number }} payload
+ */
+export async function setLessonProgress(slug, lessonId, payload) {
+  return authFetch(`/groups/${slug}/courses/lessons/${lessonId}/progress`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Get overall progress for a course.
+ * @param {string} slug - community slug
+ * @param {string} courseId - UUID
+ */
+export async function getCourseProgress(slug, courseId) {
+  return authFetch(`/groups/${slug}/courses/${courseId}/progress`);
+}
+
+/**
+ * Create a new module inside a course.
+ * @param {string} slug - community slug
+ * @param {string} courseId - UUID
+ * @param {{ title, isPublished? }} payload
+ */
+export async function createModule(slug, courseId, payload) {
+  return authFetch(`/groups/${slug}/courses/${courseId}/modules`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Update a module.
+ * @param {string} slug - community slug
+ * @param {string} moduleId - UUID
+ * @param {object} payload - partial module fields
+ */
+export async function updateModule(slug, moduleId, payload) {
+  return authFetch(`/groups/${slug}/courses/modules/${moduleId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Delete a module (soft delete).
+ * @param {string} slug - community slug
+ * @param {string} moduleId - UUID
+ */
+export async function deleteModule(slug, moduleId) {
+  return authFetch(`/groups/${slug}/courses/modules/${moduleId}`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * Create a new lesson inside a module.
+ * @param {string} slug - community slug
+ * @param {string} moduleId - UUID
+ * @param {{ title, content?, videoUrl?, transcript?, chapters?, attachments?, isPublished?, isFreePreview? }} payload
+ */
+export async function createLesson(slug, moduleId, payload) {
+  return authFetch(`/groups/${slug}/courses/modules/${moduleId}/lessons`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Update a lesson (title, content, video, transcript, chapters, attachments, flags).
+ * @param {string} slug - community slug
+ * @param {string} lessonId - UUID
+ * @param {object} payload - partial lesson fields
+ */
+export async function updateLesson(slug, lessonId, payload) {
+  return authFetch(`/groups/${slug}/courses/lessons/${lessonId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Delete a lesson (soft delete).
+ * @param {string} slug - community slug
+ * @param {string} lessonId - UUID
+ */
+export async function deleteLesson(slug, lessonId) {
+  return authFetch(`/groups/${slug}/courses/lessons/${lessonId}`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * Grant a specific member access to a PRIVATE_GRANT course.
+ * @param {string} slug - community slug
+ * @param {string} courseId - UUID
+ * @param {string} userId - member's user UUID
+ */
+export async function grantCourseAccess(slug, courseId, userId) {
+  return authFetch(`/groups/${slug}/courses/${courseId}/access`, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  });
+}
+
+/**
+ * Revoke a specific member's access to a PRIVATE_GRANT course.
+ * @param {string} slug - community slug
+ * @param {string} courseId - UUID
+ * @param {string} userId - member's user UUID
+ */
+export async function revokeCourseAccess(slug, courseId, userId) {
+  return authFetch(`/groups/${slug}/courses/${courseId}/access/${userId}`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * List all members granted access to a PRIVATE_GRANT course.
+ * @param {string} slug - community slug
+ * @param {string} courseId - UUID
+ */
+export async function getCourseAccessList(slug, courseId) {
+  return authFetch(`/groups/${slug}/courses/${courseId}/access`);
+}
+
 
 /* ------------------------------- analytics -------------------------------- */
 
@@ -481,7 +581,11 @@ export async function fetchSettings(slug) {
       tags: g.tags ?? [],
     },
     categories: Array.isArray(g.categories) ? g.categories : [],
-    tiers: Array.isArray(g.memberTiers) ? g.memberTiers : [],
+    tiers: Array.isArray(g.memberTiers) ? g.memberTiers.map(t => ({
+      ...t,
+      memberCount: t._count?.members || 0,
+      lockedContent: "no locked content"
+    })) : [],
     questions: joinQuestions, // Not yet migrated
     preferences: preferences, // Not yet migrated
     invites: invites,         // Not yet migrated
@@ -544,20 +648,27 @@ export async function reorderCategories(slug, orderedIds) {
 
 /* tiers — name only, never a price */
 
-export function addTier(name) {
-  const tier = { id: `local-${Date.now()}`, name, memberCount: 0, lockedContent: "no locked content" };
-  tiers = [...tiers, tier];
-  return resolve(tier);
+export async function addTier(slug, name) {
+  const data = await authFetch(`/groups/${slug}/tiers`, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+  return data;
 }
 
-export function renameTier(tierId, name) {
-  tiers = tiers.map((t) => (t.id === tierId ? { ...t, name } : t));
-  return resolve(tiers);
+export async function renameTier(slug, tierId, name) {
+  const data = await authFetch(`/groups/${slug}/tiers/${tierId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ name }),
+  });
+  return data;
 }
 
-export function deleteTier(tierId) {
-  tiers = tiers.filter((t) => t.id !== tierId);
-  return resolve(tiers);
+export async function deleteTier(slug, tierId) {
+  const data = await authFetch(`/groups/${slug}/tiers/${tierId}`, {
+    method: "DELETE",
+  });
+  return data;
 }
 
 /* join questions — at most three */
@@ -597,82 +708,88 @@ export function emailInvites(emails) {
 
 /* -------------------------------- members --------------------------------- */
 
-const members = structuredClone(mocks.members.items);
-let memberCounts = structuredClone(mocks.members.counts);
-
 const ROLE_FILTER = {
   admins: ["OWNER", "ADMIN"],
   mods: ["MODERATOR"],
   members: ["MEMBER"],
 };
 
-export function fetchMembers({ role = "all" } = {}) {
-  const wanted = ROLE_FILTER[role];
-  const items = wanted ? members.filter((m) => wanted.includes(m.role)) : members;
-  return resolve({ items, nextCursor: null, counts: memberCounts });
-}
-
-export function fetchMemberProfile(memberId) {
-  const member = mocks.members.find((m) => m.id === memberId);
-  if (!member) return Promise.reject(new Error("That member no longer exists."));
+export async function fetchMembers(slug, { role = "all", cursor = null } = {}) {
+  const qs = new URLSearchParams();
+  if (cursor) qs.set("cursor", cursor);
   
-  // They authored every post in the mock.
-  return resolve({ ...member, recentPosts: mocks.posts });
-}
-
-
-
-export function changeMemberRole(memberId, role) {
-  const member = members.find((m) => m.id === memberId);
-  member.role = role;
-  return resolve(member);
-}
-
-export function changeMemberTier(memberId, tierId) {
-  const member = members.find((m) => m.id === memberId);
-  member.tier = tierId ? tiers.find((t) => t.id === tierId) ?? null : null;
-  return resolve(member);
-}
-
-export function setCourseAccess(memberId, courseId, granted) {
-  const member = members.find((m) => m.id === memberId);
-  const current = new Set(member.courseAccess ?? []);
-  if (granted) current.add(courseId);
-  else current.delete(courseId);
-  member.courseAccess = [...current];
-  return resolve(member);
-}
-
-export function removeMember(memberId) {
-  const index = members.findIndex((m) => m.id === memberId);
-  if (index === -1) return Promise.reject(new Error("That member is no longer in the group."));
-  const [removed] = members.splice(index, 1);
-  memberCounts = {
-    ...memberCounts,
-    all: memberCounts.all - 1,
-    admins: memberCounts.admins - (removed.role === "ADMIN" || removed.role === "OWNER" ? 1 : 0),
-    moderators: memberCounts.moderators - (removed.role === "MODERATOR" ? 1 : 0),
-    members: memberCounts.members - (removed.role === "MEMBER" ? 1 : 0),
+  // Actually, the API doesn't support 'admins' directly mapping to multiple roles natively yet,
+  // but let's assume it accepts a single role or we fetch all and filter client side,
+  // but for proper implementation let's just fetch all and group on frontend OR if the backend supports it:
+  // For now, let's fetch all members since counts require fetching all anyway, or the backend gives counts.
+  
+  // Wait, backend `group.routes.js` has `GET /:slug/members`.
+  const result = await authFetch(`/groups/${slug}/members?${qs.toString()}`);
+  
+  const allItems = result?.data ?? result ?? [];
+  let items = allItems;
+  const wanted = ROLE_FILTER[role];
+  if (wanted) {
+    items = items.filter((m) => wanted.includes(m.role));
+  }
+  
+  // Derive counts from allItems
+  const memberCounts = {
+    all: allItems.length,
+    admins: allItems.filter(m => ["OWNER", "ADMIN"].includes(m.role)).length,
+    moderators: allItems.filter(m => m.role === "MODERATOR").length,
+    members: allItems.filter(m => m.role === "MEMBER").length,
+    pendingRequests: 0, // We'll fetch this from requests API if needed, or leave it 0
   };
+
+  return { items, nextCursor: result?.meta?.nextCursor ?? null, counts: memberCounts };
+}
+
+export async function fetchMemberProfile(slug, memberId) {
+  const result = await authFetch(`/groups/${slug}/members/${memberId}/profile`);
+  return result?.data ?? result;
+}
+
+export async function changeMemberRole(slug, memberId, role) {
+  const result = await authFetch(`/groups/${slug}/members/${memberId}/role`, {
+    method: "PATCH",
+    body: JSON.stringify({ role }),
+  });
+  return result?.data ?? result;
+}
+
+export async function changeMemberTier(slug, memberId, tierId) {
+  const result = await authFetch(`/groups/${slug}/members/${memberId}/tier`, {
+    method: "PATCH",
+    body: JSON.stringify({ tierId }),
+  });
+  return result?.data ?? result;
+}
+
+export async function setCourseAccess(slug, memberId, courseId, granted) {
+  // Not fully implemented on backend, mock for now
   return resolve({ ok: true });
 }
 
-/** Approving a request adds to the group; both outcomes clear the queue entry. */
-export function approveJoinRequest(requestId) {
-  joinRequests = joinRequests.filter((r) => r.id !== requestId);
-  memberCounts = {
-    ...memberCounts,
-    all: memberCounts.all + 1,
-    members: memberCounts.members + 1,
-    pendingRequests: memberCounts.pendingRequests - 1,
-  };
-  return resolve({ ok: true, counts: memberCounts });
+export async function removeMember(slug, memberId) {
+  await authFetch(`/groups/${slug}/members/${memberId}`, {
+    method: "DELETE",
+  });
+  return { ok: true };
 }
 
-export function declineJoinRequest(requestId) {
-  joinRequests = joinRequests.filter((r) => r.id !== requestId);
-  memberCounts = { ...memberCounts, pendingRequests: memberCounts.pendingRequests - 1 };
-  return resolve({ ok: true, counts: memberCounts });
+export async function approveJoinRequest(slug, requestId) {
+  await authFetch(`/groups/${slug}/requests/${requestId}/approve`, {
+    method: "POST",
+  });
+  return { ok: true };
+}
+
+export async function declineJoinRequest(slug, requestId) {
+  await authFetch(`/groups/${slug}/requests/${requestId}/decline`, {
+    method: "POST",
+  });
+  return { ok: true };
 }
 
 export function fetchGeography() {

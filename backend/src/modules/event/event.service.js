@@ -16,7 +16,7 @@ class EventService {
    */
   async createEvent(groupId, createdBy, data) {
     if (data.accessType === 'TIER_LOCKED' && data.requiredTierId) {
-      const tier = await prisma.groupTier.findFirst({
+      const tier = await prisma.memberTier.findFirst({
         where: { id: data.requiredTierId, groupId },
       });
       if (!tier) {
@@ -204,7 +204,7 @@ class EventService {
     }
 
     if (data.requiredTierId && data.requiredTierId !== event.requiredTierId) {
-      const tier = await prisma.groupTier.findFirst({
+      const tier = await prisma.memberTier.findFirst({
         where: { id: data.requiredTierId, groupId },
       });
       if (!tier) {

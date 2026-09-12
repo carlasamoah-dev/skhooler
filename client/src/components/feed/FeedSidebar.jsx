@@ -17,15 +17,19 @@ export default function FeedSidebar({ group }) {
   useEffect(() => {
     let cancelled = false;
     fetchNextEvent().then((e) => !cancelled && setEvent(e));
-    if (mayApprove) fetchJoinRequests().then((r) => !cancelled && setRequests(r));
+    if (mayApprove) fetchJoinRequests(group.slug).then((r) => !cancelled && setRequests(r));
     return () => {
       cancelled = true;
     };
-  }, [mayApprove]);
+  }, [mayApprove, group.slug]);
 
-  const decide = async (requestId) => {
+  const decide = async (requestId, action) => {
     setRequests((r) => ({ items: r.items.filter((i) => i.id !== requestId), total: r.total - 1 }));
-    await decideJoinRequest(requestId);
+    if (action === "approve") {
+      await import("@/lib/api").then(api => api.approveJoinRequest(group.slug, requestId));
+    } else {
+      await import("@/lib/api").then(api => api.declineJoinRequest(group.slug, requestId));
+    }
   };
 
   return (

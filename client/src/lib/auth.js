@@ -1,8 +1,7 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
 const getAuthHeaders = () => {
-  const token = localStorage.getItem("accessToken");
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  return {};
 };
 
 let refreshPromise = null;
@@ -12,28 +11,28 @@ export async function refreshTokens() {
 
   refreshPromise = (async () => {
     try {
-      const refreshToken = localStorage.getItem("refreshToken");
-      if (!refreshToken) throw new Error("No refresh token");
-
       const res = await fetch(`${API_URL}/auth/refresh`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken }),
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error?.message || "Refresh failed");
 
-      localStorage.setItem("accessToken", data.data.accessToken);
-      localStorage.setItem("refreshToken", data.data.refreshToken);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("isAuthenticated", "true");
+      }
       return data.data;
     } catch (err) {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
       if (typeof window !== "undefined") {
+        localStorage.removeItem("isAuthenticated");
         const next = encodeURIComponent(window.location.pathname + window.location.search);
         if (!window.location.pathname.startsWith("/discover")) {
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
           window.location.href = `/discover?next=${next}`;
         } else {
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
           window.location.href = "/discover";
         }
       }
@@ -49,7 +48,6 @@ export async function refreshTokens() {
 const handleResponse = async (response) => {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    // Backend shape: { success: false, error: { code, message } }
     const message =
       errorData?.error?.message ||
       errorData?.message ||
@@ -64,38 +62,39 @@ const handleResponse = async (response) => {
 export async function login({ email, password }) {
   const response = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
   const data = await handleResponse(response);
   
-  if (data.data && data.data.accessToken) {
-    localStorage.setItem("accessToken", data.data.accessToken);
-    localStorage.setItem("refreshToken", data.data.refreshToken);
+  if (typeof window !== "undefined") {
+    localStorage.setItem("isAuthenticated", "true");
   }
   
-  return { user: data.data.user, accessToken: data.data.accessToken, refreshToken: data.data.refreshToken };
+  return { user: data.data.user };
 }
 
 export async function register({ email, password, firstName, lastName }) {
   const response = await fetch(`${API_URL}/auth/register`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password, firstName, lastName }),
   });
   const data = await handleResponse(response);
   
-  if (data.data && data.data.accessToken) {
-    localStorage.setItem("accessToken", data.data.accessToken);
-    localStorage.setItem("refreshToken", data.data.refreshToken);
+  if (typeof window !== "undefined") {
+    localStorage.setItem("isAuthenticated", "true");
   }
   
-  return { user: data.data.user, accessToken: data.data.accessToken, refreshToken: data.data.refreshToken };
+  return { user: data.data.user };
 }
 
 export async function forgotPassword({ email }) {
   const response = await fetch(`${API_URL}/auth/forgot-password`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
   });
@@ -105,6 +104,7 @@ export async function forgotPassword({ email }) {
 export async function resetPassword({ token, password }) {
   const response = await fetch(`${API_URL}/auth/reset-password`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token, newPassword: password }),
   });
@@ -114,6 +114,7 @@ export async function resetPassword({ token, password }) {
 export async function verifyEmail({ token }) {
   const response = await fetch(`${API_URL}/auth/verify-email`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token }),
   });
@@ -123,6 +124,7 @@ export async function verifyEmail({ token }) {
 export async function resendVerification({ email }) {
   const response = await fetch(`${API_URL}/auth/resend-verification`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
   });
@@ -132,6 +134,7 @@ export async function resendVerification({ email }) {
 export async function me(retry = true) {
   const response = await fetch(`${API_URL}/auth/me`, {
     method: "GET",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...getAuthHeaders(),
@@ -155,19 +158,21 @@ export async function me(retry = true) {
 }
 
 export async function logout() {
-  const refreshToken = localStorage.getItem("refreshToken");
-  if (refreshToken) {
-    await fetch(`${API_URL}/auth/logout`, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify({ refreshToken }),
-    }).catch(() => {});
-  }
+  await fetch(`${API_URL}/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+    headers: { 
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({}),
+  }).catch(() => {});
   
-  localStorage.removeItem("accessToken");
-  localStorage.removeItem("refreshToken");
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("isAuthenticated");
+    // Also clear old tokens if they exist
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
+  }
   return { ok: true };
 }

@@ -4,21 +4,39 @@ import { Card, ProgressBar, StatusDot } from "@/components/ui";
 
 const ACCESS = {
   OPEN: { tone: "sage", label: "Open to all members" },
-  TIER_LOCKED: { tone: "brand", label: "VIP tier only" },
-  PRIVATE_GRANT: { tone: "neutral", label: "Granted access only" },
+  TIER_LOCKED: { tone: "brand", label: "Tier locked" },
+  PRIVATE_GRANT: { tone: "neutral", label: "Invite only" },
 };
 
 export default function CourseCard({ course, href }) {
   const access = ACCESS[course.accessType] ?? ACCESS.OPEN;
+  // Backend returns progressPercentage; mock used progressPercent — handle both
+  const progress = course.progressPercentage ?? course.progressPercent ?? 0;
+  // Backend returns lessonsCount; mock used lessonCount — handle both
+  const lessonCount = course.lessonsCount ?? course.lessonCount ?? 0;
+  const moduleCount = course._count?.modules ?? course.moduleCount ?? 0;
 
   return (
     <Card as="article" padding={18} radius="panel" className="relative overflow-hidden p-0 flex flex-col">
-      {/* 16:9 cover. No asset yet, so it renders as a washed brand field. */}
+      {/* 16:9 cover image */}
       <div
         aria-hidden="true"
-        className="aspect-video w-full bg-brand-300"
-        style={{ filter: "saturate(.85) contrast(.95)" }}
-      />
+        className="relative aspect-video w-full bg-brand-300 overflow-hidden"
+      >
+        {course.coverUrl ? (
+          <>
+            <img
+              src={course.coverUrl}
+              alt={course.title}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            {/* subtle gradient so text stays legible if overlaid */}
+            <div className="absolute inset-0 bg-gradient-to-t from-ink/20 to-transparent" />
+          </>
+        ) : (
+          <div className="absolute inset-0 bg-brand-300" style={{ filter: "saturate(.85) contrast(.95)" }} />
+        )}
+      </div>
 
       <div className="p-[22px] flex flex-col flex-1">
         <StatusDot tone={access.tone} label={access.label} />
@@ -38,12 +56,12 @@ export default function CourseCard({ course, href }) {
         )}
 
         <div className="mt-auto pt-5">
-          <ProgressBar percent={course.progressPercent} height={10} label={`${course.title} progress`} />
+          <ProgressBar percent={progress} height={10} label={`${course.title} progress`} />
           <p className="mt-2 text-meta text-sand-700">
-            {`${course.progressPercent}% complete`}
+            {`${progress}% complete`}
           </p>
           <p className="text-meta text-sand-700">
-            {`${course.moduleCount} modules · ${course.lessonCount} lessons`}
+            {`${moduleCount} module${moduleCount !== 1 ? "s" : ""} · ${lessonCount} lesson${lessonCount !== 1 ? "s" : ""}`}
           </p>
         </div>
       </div>

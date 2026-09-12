@@ -659,9 +659,12 @@ model Lesson {
   title                String    @db.VarChar(150)
   slug                 String    @db.VarChar(170)
   content              String?   @db.Text
+  videoUrl             String?   @map("video_url") @db.Text
   videoAssetId         String?   @map("video_asset_id") @db.VarChar(100)
   videoPlaybackId      String?   @map("video_playback_id") @db.VarChar(100)
   videoDurationSeconds Int?      @map("video_duration_seconds")
+  transcript           String?   @db.Text
+  chapters             Json?
   attachments          Json?
   position             Int       @default(0)
   isPublished          Boolean   @default(false) @map("is_published")

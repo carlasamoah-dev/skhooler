@@ -3,7 +3,7 @@
  * @description Controllers for course management.
  */
 
-import * as courseService from './course.service.js'
+import { courseService } from './course.service.js'
 import { sendSuccess } from '../../utils/apiResponse.js'
 
 /**

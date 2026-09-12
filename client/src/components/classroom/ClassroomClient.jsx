@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { fetchCourses } from "@/lib/api";
 import { useCan } from "@/lib/permissions";
 import { useGroupStore } from "@/store/useGroupStore";
+import { useSocketStore } from "@/store/useSocketStore";
 import { Button, Skeleton } from "@/components/ui";
 import CourseGrid from "./CourseGrid";
 import NewCourseModal from "./NewCourseModal";
@@ -17,9 +18,31 @@ export default function ClassroomClient() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchCourses().then((c) => !cancelled && setCourses(c));
+    if (slug) {
+      fetchCourses(slug).then((c) => !cancelled && setCourses(c));
+    }
     return () => { cancelled = true; };
-  }, []);
+  }, [slug]);
+
+  useEffect(() => {
+    if (!slug) return;
+    const { socket, isConnected } = useSocketStore.getState();
+    if (!socket || !isConnected) return;
+
+    const onCourseChange = () => {
+      fetchCourses(slug).then(setCourses).catch(console.error);
+    };
+
+    socket.on('course:created', onCourseChange);
+    socket.on('course:updated', onCourseChange);
+    socket.on('course:deleted', onCourseChange);
+
+    return () => {
+      socket.off('course:created', onCourseChange);
+      socket.off('course:updated', onCourseChange);
+      socket.off('course:deleted', onCourseChange);
+    };
+  }, [slug]);
 
   const handleCourseCreated = (newCourse) => {
     setCourses((prev) => [newCourse, ...(prev || [])]);
@@ -33,7 +56,8 @@ export default function ClassroomClient() {
     );
   }
 
-  const lessonTotal = courses.reduce((sum, c) => sum + (c.lessonCount || 0), 0);
+  // API returns lessonsCount; fallback to lessonCount for any cached data
+  const lessonTotal = courses.reduce((sum, c) => sum + (c.lessonsCount || c.lessonCount || 0), 0);
 
   return (
     <>
@@ -49,12 +73,18 @@ export default function ClassroomClient() {
         ) : null}
       </div>
 
-      <CourseGrid courses={courses} slug={slug} canCreate={can("course:create")} />
+      <CourseGrid
+        courses={courses}
+        slug={slug}
+        canCreate={can("course:create")}
+        onCreate={() => setShowNewModal(true)}
+      />
 
       <NewCourseModal
         open={showNewModal}
         onClose={() => setShowNewModal(false)}
         onCreated={handleCourseCreated}
+        slug={slug}
       />
     </>
   );

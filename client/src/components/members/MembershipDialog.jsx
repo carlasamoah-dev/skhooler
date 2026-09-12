@@ -48,19 +48,20 @@ export default function MembershipDialog({ open, member, tiers = [], courses = [
   const save = async () => {
     setBusy(true);
     try {
+      const { slug } = useGroupStore.getState();
       if (canChangeRole && role !== member.role) {
-        await changeMemberRole(member.id, role);
+        await changeMemberRole(slug, member.id, role);
         // If this is the current user's own membership, update the store
         // so all role gates re-evaluate instantly everywhere.
         if (member.id === membership?.id || user.id === membership?.userId) {
           updateMembershipRole(role);
         }
       }
-      if ((tierId || null) !== (member.tier?.id ?? null)) await changeMemberTier(member.id, tierId || null);
+      if ((tierId || null) !== (member.tier?.id ?? null)) await changeMemberTier(slug, member.id, tierId || null);
       for (const course of courses) {
         const had = (member.courseAccess ?? []).includes(course.id);
         const has = access.has(course.id);
-        if (had !== has) await setCourseAccess(member.id, course.id, has);
+        if (had !== has) await setCourseAccess(slug, member.id, course.id, has);
       }
       await onChanged?.();
       onClose?.();
@@ -145,7 +146,8 @@ export default function MembershipDialog({ open, member, tiers = [], courses = [
           <Button
             variant="secondary"
             onClick={async () => {
-              await removeMember(member.id);
+              const { slug } = useGroupStore.getState();
+              await removeMember(slug, member.id);
               await onChanged?.();
               onClose?.();
             }}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Shield, CreditCard, Check, Loader2, ChevronLeft, Users, BookOpen, Calendar, MessageSquare } from "lucide-react";
 
@@ -50,6 +50,14 @@ export default function JoinPage({ slug }) {
   const [selectedTierId, setSelectedTierId] = useState(community.tiers[0].id);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  
+  const [trialEndDate, setTrialEndDate] = useState("");
+  
+  useEffect(() => {
+    const formatted = new Date(Date.now() + community.trialDays * 86400000).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTrialEndDate(formatted);
+  }, [community.trialDays]);
 
   const selectedTier = community.tiers.find(t => t.id === selectedTierId);
   const hasTrial = community.trialDays > 0;
@@ -142,7 +150,7 @@ export default function JoinPage({ slug }) {
 
             {/* What's included */}
             <div>
-              <h3 className="text-sm font-bold text-sand-700 mb-3 uppercase tracking-wide">What's included</h3>
+              <h3 className="text-sm font-bold text-sand-700 mb-3 uppercase tracking-wide">What&apos;s included</h3>
               <div className="bg-surface border border-divider rounded-2xl p-5 grid grid-cols-1 sm:grid-cols-2 gap-3 shadow-soft">
                 {BENEFITS.map(({ icon: Icon, label }) => (
                   <div key={label} className="flex items-center gap-3 text-sm text-ink">
@@ -169,8 +177,8 @@ export default function JoinPage({ slug }) {
               )}
               {hasTrial && (
                 <p className="text-xs opacity-60 mt-3 border-t border-white/20 pt-3">
-                  Your {community.trialDays}-day free trial starts now. You'll be charged ${selectedTier?.price}/mo on{" "}
-                  {new Date(Date.now() + community.trialDays * 86400000).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}.
+                  Your {community.trialDays}-day free trial starts now. You&apos;ll be charged ${selectedTier?.price}/mo on{" "}
+                  {trialEndDate}.
                   Cancel anytime.
                 </p>
               )}

@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Folder, FileText, Settings, GripVertical, Eye } from "lucide-react";
+import { ArrowLeft, Plus, Folder, FileText, Settings, GripVertical, Eye, Trash2, Loader2 } from "lucide-react";
 import { Button, Card, IconButton, Input } from "@/components/ui";
 import CourseSettingsModal from "./CourseSettingsModal";
 import LessonEditorModal from "./LessonEditorModal";
-import { updateCourse } from "@/lib/api";
+import { createModule, deleteModule, createLesson, deleteLesson, updateCourse, fetchCourse } from "@/lib/api";
+import { useSocketStore } from "@/store/useSocketStore";
 
 export default function CourseBuilderClient({ course: initialCourse, slug }) {
   const router = useRouter();
@@ -15,59 +16,96 @@ export default function CourseBuilderClient({ course: initialCourse, slug }) {
   const [modules, setModules] = useState(initialCourse.modules || []);
   const [newModuleTitle, setNewModuleTitle] = useState("");
   const [addingModule, setAddingModule] = useState(false);
+  const [savingModule, setSavingModule] = useState(false);
   const [addingLessonTo, setAddingLessonTo] = useState(null); // moduleId
+  const [savingLesson, setSavingLesson] = useState(false);
   const [newLessonTitle, setNewLessonTitle] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [editingLesson, setEditingLesson] = useState(null); // { moduleId, lesson }
-  
-  const persistModules = async (newModules) => {
-    setModules(newModules);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const { socket, isConnected } = useSocketStore.getState();
+    if (!socket || !isConnected) return;
+
+    const onCourseChange = (payload) => {
+      // payload might have courseId or course object
+      const targetId = payload?.courseId || payload?.course?.id;
+      if (targetId && targetId !== course.id) return;
+      
+      fetchCourse(slug, course.slug).then((refreshed) => {
+        setCourse(refreshed);
+        setModules(refreshed.modules || []);
+      }).catch(console.error);
+    };
+
+    socket.on('course:updated', onCourseChange);
+
+    return () => {
+      socket.off('course:updated', onCourseChange);
+    };
+  }, [slug, course.id, course.slug]);
+
+  const handleAddModule = async (e) => {
+    e.preventDefault();
+    if (!newModuleTitle.trim()) return;
+    setSavingModule(true);
+    setError(null);
     try {
-      await updateCourse(course.id, { modules: newModules });
+      const newMod = await createModule(slug, course.id, { title: newModuleTitle.trim() });
+      setModules((prev) => [...prev, { ...newMod, lessons: [] }]);
+      setNewModuleTitle("");
+      setAddingModule(false);
     } catch (err) {
-      console.error("Failed to persist modules to mock API:", err);
+      setError(err.message || "Failed to create module.");
+    } finally {
+      setSavingModule(false);
     }
   };
 
-  const handleAddModule = (e) => {
-    e.preventDefault();
-    if (!newModuleTitle.trim()) return;
-    const newMod = {
-      id: `mod-${Date.now()}`,
-      title: newModuleTitle.trim(),
-      lessons: [],
-    };
-    persistModules([...modules, newMod]);
-    setNewModuleTitle("");
-    setAddingModule(false);
+  const handleDeleteModule = async (moduleId) => {
+    if (!window.confirm("Delete this module and all its lessons?")) return;
+    setError(null);
+    try {
+      await deleteModule(slug, moduleId);
+      setModules((prev) => prev.filter((m) => m.id !== moduleId));
+    } catch (err) {
+      setError(err.message || "Failed to delete module.");
+    }
   };
 
-  const handleAddLesson = (e, moduleId) => {
+  const handleAddLesson = async (e, moduleId) => {
     e.preventDefault();
     if (!newLessonTitle.trim()) return;
-    
-    persistModules(modules.map(mod => {
-      if (mod.id !== moduleId) return mod;
-      return {
-        ...mod,
-        lessons: [
-          ...mod.lessons,
-          {
-            id: `less-${Date.now()}`,
-            title: newLessonTitle.trim(),
-            content: "",
-            videoUrl: "",
-            transcript: "",
-            attachments: [],
-            chapters: [],
-            isCompleted: false,
-          }
-        ]
-      };
-    }));
-    
-    setNewLessonTitle("");
-    setAddingLessonTo(null);
+    setSavingLesson(true);
+    setError(null);
+    try {
+      const newLesson = await createLesson(slug, moduleId, { title: newLessonTitle.trim() });
+      setModules((prev) => prev.map((mod) => {
+        if (mod.id !== moduleId) return mod;
+        return { ...mod, lessons: [...mod.lessons, newLesson] };
+      }));
+      setNewLessonTitle("");
+      setAddingLessonTo(null);
+    } catch (err) {
+      setError(err.message || "Failed to create lesson.");
+    } finally {
+      setSavingLesson(false);
+    }
+  };
+
+  const handleDeleteLesson = async (moduleId, lessonId) => {
+    if (!window.confirm("Delete this lesson?")) return;
+    setError(null);
+    try {
+      await deleteLesson(slug, lessonId);
+      setModules((prev) => prev.map((mod) => {
+        if (mod.id !== moduleId) return mod;
+        return { ...mod, lessons: mod.lessons.filter((l) => l.id !== lessonId) };
+      }));
+    } catch (err) {
+      setError(err.message || "Failed to delete lesson.");
+    }
   };
 
   const handleCourseUpdated = (updatedCourse) => {
@@ -76,19 +114,18 @@ export default function CourseBuilderClient({ course: initialCourse, slug }) {
 
   const handleLessonSaved = (updatedLesson) => {
     if (!editingLesson) return;
-    
-    persistModules(modules.map(mod => {
+    setModules((prev) => prev.map((mod) => {
       if (mod.id !== editingLesson.moduleId) return mod;
       return {
         ...mod,
-        lessons: mod.lessons.map(l => l.id === updatedLesson.id ? updatedLesson : l)
+        lessons: mod.lessons.map((l) => l.id === updatedLesson.id ? updatedLesson : l),
       };
     }));
     setEditingLesson(null);
   };
 
   // Find the first lesson to route to for Preview
-  const firstLesson = modules.find(m => m.lessons.length > 0)?.lessons[0];
+  const firstLesson = modules.find((m) => m.lessons?.length > 0)?.lessons[0];
 
   return (
     <div className="max-w-4xl mx-auto py-6">
@@ -96,6 +133,12 @@ export default function CourseBuilderClient({ course: initialCourse, slug }) {
         <ArrowLeft className="w-4 h-4 mr-2" />
         Back to Classroom
       </Link>
+
+      {error && (
+        <div role="alert" className="mb-4 text-ui text-alert bg-brand-50 rounded-inner px-4 py-3">
+          {error}
+        </div>
+      )}
       
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
         <div>
@@ -128,21 +171,42 @@ export default function CourseBuilderClient({ course: initialCourse, slug }) {
                 <GripVertical className="w-4 h-4 text-sand-400 cursor-grab" />
                 <Folder className="w-5 h-5 text-sand-600" />
                 <h3 className="text-lg font-bold text-ink">{mod.title}</h3>
+                <span className="text-meta text-sand-600">{mod.lessons?.length || 0} lesson{(mod.lessons?.length || 0) !== 1 ? "s" : ""}</span>
               </div>
-              <IconButton icon={Plus} label="Add lesson" onClick={() => setAddingLessonTo(mod.id)} />
+              <div className="flex items-center gap-1">
+                <IconButton icon={Plus} label="Add lesson" onClick={() => setAddingLessonTo(mod.id)} />
+                <IconButton
+                  icon={Trash2}
+                  label="Delete module"
+                  onClick={() => handleDeleteModule(mod.id)}
+                  className="text-alert opacity-0 group-hover:opacity-100 transition-opacity"
+                />
+              </div>
             </div>
             
             <div className="flex flex-col divide-y divide-divider bg-surface">
-              {mod.lessons.map((lesson) => (
+              {mod.lessons?.map((lesson) => (
                 <div key={lesson.id} className="px-11 py-3 flex items-center justify-between hover:bg-sand-50 transition-colors group">
                   <div className="flex items-center gap-3">
                     <FileText className="w-4 h-4 text-brand" />
                     <span className="font-medium text-ink">{lesson.title}</span>
+                    {!lesson.isPublished && (
+                      <span className="text-kicker text-sand-500 font-bold uppercase text-[10px]">Draft</span>
+                    )}
+                    {lesson.isFreePreview && (
+                      <span className="text-kicker text-sage-600 font-bold uppercase text-[10px]">Free preview</span>
+                    )}
                   </div>
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
                     <Button variant="ghost" size="sm" onClick={() => setEditingLesson({ moduleId: mod.id, lesson })}>
                       Edit content
                     </Button>
+                    <IconButton
+                      icon={Trash2}
+                      label="Delete lesson"
+                      onClick={() => handleDeleteLesson(mod.id, lesson.id)}
+                      className="text-alert"
+                    />
                   </div>
                 </div>
               ))}
@@ -157,13 +221,15 @@ export default function CourseBuilderClient({ course: initialCourse, slug }) {
                       onChange={(e) => setNewLessonTitle(e.target.value)} 
                       className="h-8 text-sm max-w-xs"
                     />
-                    <Button type="submit" size="sm">Save</Button>
+                    <Button type="submit" size="sm" disabled={savingLesson}>
+                      {savingLesson ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save"}
+                    </Button>
                     <Button type="button" variant="ghost" size="sm" onClick={() => { setAddingLessonTo(null); setNewLessonTitle(""); }}>Cancel</Button>
                   </form>
                 </div>
               )}
               
-              {!addingLessonTo && mod.lessons.length === 0 && (
+              {!addingLessonTo && (!mod.lessons || mod.lessons.length === 0) && (
                 <div className="px-11 py-6 text-center">
                   <p className="text-sand-600 text-sm">This module is empty.</p>
                   <Button variant="secondary" size="sm" className="mt-3" onClick={() => setAddingLessonTo(mod.id)} icon={Plus}>
@@ -189,7 +255,9 @@ export default function CourseBuilderClient({ course: initialCourse, slug }) {
               </div>
               <div className="flex items-center gap-2">
                 <Button type="button" variant="ghost" onClick={() => { setAddingModule(false); setNewModuleTitle(""); }}>Cancel</Button>
-                <Button type="submit">Save module</Button>
+                <Button type="submit" disabled={savingModule}>
+                  {savingModule ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />Saving...</> : "Save module"}
+                </Button>
               </div>
             </form>
           </Card>
@@ -210,6 +278,7 @@ export default function CourseBuilderClient({ course: initialCourse, slug }) {
         onClose={() => setShowSettings(false)}
         course={course}
         onSaved={handleCourseUpdated}
+        slug={slug}
       />
 
       <LessonEditorModal
@@ -217,7 +286,9 @@ export default function CourseBuilderClient({ course: initialCourse, slug }) {
         onClose={() => setEditingLesson(null)}
         lesson={editingLesson?.lesson}
         onSaved={handleLessonSaved}
+        slug={slug}
       />
     </div>
   );
 }
+

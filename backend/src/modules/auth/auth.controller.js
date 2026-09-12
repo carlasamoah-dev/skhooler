@@ -5,10 +5,36 @@ import { sendSuccess } from '../../utils/apiResponse.js';
  * Controller for auth endpoints
  */
 
+const setTokenCookies = (res, result) => {
+  if (result.accessToken) {
+    res.cookie('accessToken', result.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000 // 15 minutes
+    });
+  }
+  if (result.refreshToken) {
+    res.cookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+  }
+};
+
+const clearTokenCookies = (res) => {
+  res.clearCookie('accessToken');
+  res.clearCookie('refreshToken');
+};
+
 export const register = async (req, res, next) => {
   try {
     const result = await authService.register(req.body);
-    sendSuccess(res, result, 201);
+    setTokenCookies(res, result);
+    const { accessToken, refreshToken, ...safeResult } = result;
+    sendSuccess(res, safeResult, 201);
   } catch (error) {
     next(error);
   }
@@ -17,7 +43,9 @@ export const register = async (req, res, next) => {
 export const login = async (req, res, next) => {
   try {
     const result = await authService.login(req.body);
-    sendSuccess(res, result, 200);
+    setTokenCookies(res, result);
+    const { accessToken, refreshToken, ...safeResult } = result;
+    sendSuccess(res, safeResult, 200);
   } catch (error) {
     next(error);
   }
@@ -25,8 +53,17 @@ export const login = async (req, res, next) => {
 
 export const refreshTokens = async (req, res, next) => {
   try {
-    const result = await authService.refreshTokens(req.body);
-    sendSuccess(res, result, 200);
+    // If using cookies, the refresh token will be in req.cookies.refreshToken
+    // but the frontend might also send it in the body. We check both.
+    const refreshToken = req.cookies?.refreshToken || req.body.refreshToken;
+    if (!refreshToken) {
+      const { UnauthorizedError } = await import('../../utils/errors.js');
+      return next(new UnauthorizedError('No refresh token provided'));
+    }
+    const result = await authService.refreshTokens({ refreshToken });
+    setTokenCookies(res, result);
+    const { accessToken, refreshToken: newRefresh, ...safeResult } = result;
+    sendSuccess(res, safeResult, 200);
   } catch (error) {
     next(error);
   }
@@ -34,7 +71,11 @@ export const refreshTokens = async (req, res, next) => {
 
 export const logout = async (req, res, next) => {
   try {
-    await authService.logout({ ...req.body, userId: req.user.id });
+    const refreshToken = req.cookies?.refreshToken || req.body.refreshToken;
+    if (refreshToken) {
+      await authService.logout({ refreshToken, userId: req.user.id });
+    }
+    clearTokenCookies(res);
     sendSuccess(res, { message: 'Logged out successfully' }, 200);
   } catch (error) {
     next(error);

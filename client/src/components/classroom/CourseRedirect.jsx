@@ -20,8 +20,9 @@ export default function CourseRedirect({ courseSlug }) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (!slug) return;
     let cancelled = false;
-    fetchCourse(courseSlug)
+    fetchCourse(slug, courseSlug)
       .then((c) => {
         if (cancelled) return;
         const first = c.modules?.[0]?.lessons?.[0];
@@ -42,16 +43,14 @@ export default function CourseRedirect({ courseSlug }) {
 
   if (course) {
     if (mayEdit) {
-      // Create an empty modules array if null (which happens for mock courses other than the first)
-      const courseWithModules = { ...course, modules: course.modules || [] };
-      return <CourseBuilderClient course={courseWithModules} slug={slug} />;
+      return <CourseBuilderClient course={course} slug={slug} />;
     }
 
     return (
       <EmptyState
         icon={BookOpen}
-        title={`${course.title} has no lessons loaded`}
-        body="The mock data carries a module tree for one course only. The real API returns one for every course."
+        title={`${course.title} is empty`}
+        body="This course doesn't have any published lessons yet."
       />
     );
   }

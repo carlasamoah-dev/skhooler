@@ -11,7 +11,7 @@ class ProgressService {
    */
   async updateLessonProgress(lessonId, userId, { isCompleted, lastPositionSeconds }) {
     const lesson = await prisma.lesson.findFirst({
-      where: { id: lessonId, isPublished: true, deletedAt: null },
+      where: { id: lessonId, deletedAt: null },
       include: {
         module: {
           include: { course: true }
@@ -19,8 +19,8 @@ class ProgressService {
       }
     });
 
-    if (!lesson || !lesson.module || !lesson.module.isPublished || !lesson.module.deletedAt === null) {
-      throw new NotFoundError('Published Lesson');
+    if (!lesson || !lesson.module || lesson.module.deletedAt !== null) {
+      throw new NotFoundError('Lesson');
     }
 
     const courseId = lesson.module.courseId;

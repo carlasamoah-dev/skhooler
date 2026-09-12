@@ -3,7 +3,7 @@
  * @description Controllers for course progress management.
  */
 
-import * as progressService from './progress.service.js'
+import { progressService } from './progress.service.js'
 import { sendSuccess } from '../../utils/apiResponse.js'
 
 /**

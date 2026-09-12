@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { X, Save, Video, FileText, Upload, Plus, Trash2, Image as ImageIcon } from "lucide-react";
+import { X, Save, Video, FileText, Upload, Plus, Trash2, Image as ImageIcon, Loader2 } from "lucide-react";
 import { Button, Input } from "@/components/ui";
 
 /** Simple chip for showing attached files */
@@ -22,15 +22,20 @@ function FileChip({ file, onRemove }) {
   );
 }
 
-export default function LessonEditorModal({ open, onClose, lesson, onSaved }) {
+export default function LessonEditorModal({ open, onClose, lesson, onSaved, slug }) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [videoFile, setVideoFile] = useState(null);
   const [videoPreview, setVideoPreview] = useState(null);
   const [transcript, setTranscript] = useState("");
-  const [attachments, setAttachments] = useState([]);
+  const [attachments, setAttachments] = useState([]); // mix of File objects and {name,url,size,type} stored objects
   const [chapters, setChapters] = useState([]);
+  const [isPublished, setIsPublished] = useState(false);
+  const [isFreePreview, setIsFreePreview] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(""); // "" | "uploading-video" | "uploading-attachments" | "saving"
+  const [error, setError] = useState(null);
   
   const attachRef = useRef(null);
   const videoRef = useRef(null);
@@ -40,13 +45,37 @@ export default function LessonEditorModal({ open, onClose, lesson, onSaved }) {
       setTitle(lesson.title || "");
       setContent(lesson.content || "");
       setVideoUrl(lesson.videoUrl || "");
-      setVideoFile(lesson.videoFile || null);
-      setVideoPreview(lesson.videoPreview || null);
+      setVideoFile(null);
+      setVideoPreview(null);
       setTranscript(lesson.transcript || "");
       setAttachments(lesson.attachments || []);
-      setChapters(lesson.chapters || []);
+      setChapters(
+        (lesson.chapters || []).map((c) => ({
+          // Backend stores { title, startSeconds }, editor uses { timestamp, title }
+          timestamp: c.startSeconds !== undefined ? secondsToTimestamp(c.startSeconds) : (c.timestamp || "00:00"),
+          title: c.title || c.label || "",
+        }))
+      );
+      setIsPublished(lesson.isPublished || false);
+      setIsFreePreview(lesson.isFreePreview || false);
+      setError(null);
     }
   }, [lesson]);
+
+  /** Convert "MM:SS" or "HH:MM:SS" string to integer seconds */
+  function timestampToSeconds(ts) {
+    const parts = ts.split(":").map(Number);
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    return 0;
+  }
+
+  /** Convert integer seconds to "MM:SS" */
+  function secondsToTimestamp(s) {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  }
 
   const handleAttachments = (e) => {
     const files = Array.from(e.target.files || []);
@@ -86,25 +115,62 @@ export default function LessonEditorModal({ open, onClose, lesson, onSaved }) {
     setChapters(chapters.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title.trim()) return;
 
-    const updatedLesson = {
-      ...lesson,
-      title: title.trim(),
-      content: content.trim(),
-      videoUrl: videoUrl.trim(),
-      videoFile,
-      videoPreview,
-      transcript: transcript.trim(),
-      attachments,
-      chapters: chapters.filter(c => c.title.trim() !== ""),
-    };
+    setIsSaving(true);
+    setError(null);
 
-    onSaved?.(updatedLesson);
-    onClose?.();
+    try {
+      const { uploadImage, updateLesson } = await import("@/lib/api");
+
+      // 1. Upload video file if one was selected
+      let finalVideoUrl = videoUrl.trim() || null;
+      if (videoFile) {
+        setSaveStatus("uploading-video");
+        finalVideoUrl = await uploadImage(videoFile, "lesson-attachments");
+      }
+
+      // 2. Upload any new attachment files (File objects), keep existing stored ones
+      setSaveStatus("uploading-attachments");
+      const finalAttachments = await Promise.all(
+        attachments.map(async (item) => {
+          if (item instanceof File) {
+            const url = await uploadImage(item, "lesson-attachments");
+            return { name: item.name, url, size: item.size, type: item.type };
+          }
+          // Already a stored attachment object { name, url, size, type }
+          return item;
+        })
+      );
+
+      // 3. Save lesson to backend
+      setSaveStatus("saving");
+      const payload = {
+        title: title.trim(),
+        content: content.trim() || null,
+        videoUrl: finalVideoUrl,
+        transcript: transcript.trim() || null,
+        chapters: chapters
+          .filter((c) => c.title.trim() !== "")
+          .map((c) => ({ title: c.title.trim(), startSeconds: timestampToSeconds(c.timestamp) })),
+        attachments: finalAttachments,
+        isPublished,
+        isFreePreview,
+      };
+
+      const updatedLesson = await updateLesson(slug, lesson.id, payload);
+      onSaved?.(updatedLesson);
+      onClose?.();
+    } catch (err) {
+      setError(err.message || "Failed to save lesson.");
+    } finally {
+      setIsSaving(false);
+      setSaveStatus("");
+    }
   };
+
 
   if (!open || !lesson) return null;
 
@@ -128,6 +194,10 @@ export default function LessonEditorModal({ open, onClose, lesson, onSaved }) {
         {/* Scrollable body */}
         <form id="lesson-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-8">
           
+          {error && (
+            <p role="alert" className="text-ui text-alert bg-brand-50 rounded-inner px-4 py-3">{error}</p>
+          )}
+
           {/* Basics */}
           <div className="flex flex-col gap-4">
             <h3 className="text-lg font-bold text-ink">Basics</h3>
@@ -137,6 +207,25 @@ export default function LessonEditorModal({ open, onClose, lesson, onSaved }) {
               onChange={(e) => setTitle(e.target.value)} 
               required 
             />
+
+            {/* Publish toggles */}
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <div className="relative">
+                  <input type="checkbox" className="sr-only peer" checked={isPublished} onChange={(e) => setIsPublished(e.target.checked)} />
+                  <div className="w-10 h-5 bg-sand-300 rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand"></div>
+                </div>
+                <span className="text-ui font-medium text-ink">Published</span>
+              </label>
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <div className="relative">
+                  <input type="checkbox" className="sr-only peer" checked={isFreePreview} onChange={(e) => setIsFreePreview(e.target.checked)} />
+                  <div className="w-10 h-5 bg-sand-300 rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sage"></div>
+                </div>
+                <span className="text-ui font-medium text-ink">Free preview</span>
+                <span className="text-meta text-sand-600">(non-members can view)</span>
+              </label>
+            </div>
             
             <div>
               <label className="field-label mb-1.5">Rich Text Content</label>
@@ -271,9 +360,16 @@ export default function LessonEditorModal({ open, onClose, lesson, onSaved }) {
 
         {/* Footer */}
         <div className="px-6 py-4 shrink-0 border-t border-divider flex items-center justify-end gap-3 bg-sand-100 rounded-b-overlay">
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button type="submit" form="lesson-form" disabled={!title.trim()} icon={Save}>
-            Save Lesson
+          <Button variant="ghost" onClick={onClose} disabled={isSaving}>Cancel</Button>
+          <Button type="submit" form="lesson-form" disabled={!title.trim() || isSaving} icon={isSaving ? undefined : Save}>
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                {saveStatus === "uploading-video" ? "Uploading video..." :
+                 saveStatus === "uploading-attachments" ? "Uploading files..." :
+                 "Saving..."}
+              </>
+            ) : "Save Lesson"}
           </Button>
         </div>
       </div>

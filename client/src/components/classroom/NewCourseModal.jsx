@@ -7,9 +7,9 @@ import { useGroupStore } from "@/store/useGroupStore";
 import { RadioCard, Select } from "@/components/ui";
 import { createCourse } from "@/lib/api";
 
-export default function NewCourseModal({ open, onClose, onCreated }) {
+export default function NewCourseModal({ open, onClose, onCreated, slug }) {
   const can = useCan();
-  const { slug, tiers } = useGroupStore();
+  const { tiers } = useGroupStore();
 
   // Form state
   const [title, setTitle] = useState("");
@@ -19,6 +19,7 @@ export default function NewCourseModal({ open, onClose, onCreated }) {
   const [accessType, setAccessType] = useState("OPEN"); // OPEN | TIER_LOCKED | PRIVATE_GRANT
   const [requiredTierId, setRequiredTierId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState(""); // "" | "uploading" | "creating"
   const [error, setError] = useState(null);
 
   const coverRef = useRef(null);
@@ -34,20 +35,29 @@ export default function NewCourseModal({ open, onClose, onCreated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title.trim()) { setError("Give the course a title."); return; }
+    if (!coverFile && !coverPreview) { setError("Please upload a cover image."); return; }
     if (accessType === "TIER_LOCKED" && !requiredTierId) { setError("Please select a required tier."); return; }
     
     setError(null);
     setIsSubmitting(true);
     
     try {
-      // Mock creation via API
-      const newCourse = await createCourse({
+      // 1. Upload cover image to Supabase Storage
+      let coverUrl = null;
+      if (coverFile) {
+        setUploadStatus("uploading");
+        const { uploadImage } = await import("@/lib/api");
+        coverUrl = await uploadImage(coverFile, "course-covers");
+      }
+      
+      // 2. Create the course with the real storage URL
+      setUploadStatus("creating");
+      const newCourse = await createCourse(slug, {
         title: title.trim(),
-        description: description.trim(),
-        coverUrl: coverPreview,
+        description: description.trim() || null,
+        coverUrl,
         accessType,
         requiredTierId: accessType === "TIER_LOCKED" ? requiredTierId : null,
-        slug: title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-"),
       });
       
       onCreated?.(newCourse);
@@ -56,8 +66,10 @@ export default function NewCourseModal({ open, onClose, onCreated }) {
       setError(err.message || "Failed to create course.");
     } finally {
       setIsSubmitting(false);
+      setUploadStatus("");
     }
   };
+
 
   const handleClose = () => {
     setTitle("");
@@ -200,8 +212,11 @@ export default function NewCourseModal({ open, onClose, onCreated }) {
             onClick={handleSubmit}
             className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed gap-2"
           >
-            {isSubmitting ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Creating...</>
+          {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {uploadStatus === "uploading" ? "Uploading image..." : "Creating course..."}
+              </>
             ) : (
               <><BookOpen className="w-4 h-4" /> Create course</>
             )}

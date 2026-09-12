@@ -6,12 +6,19 @@ import { verifyAccessToken } from '../utils/jwt.js';
 
 export async function authenticate(req, res, next) {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    let token = req.cookies?.accessToken;
+    
+    if (!token) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.split(' ')[1];
+      }
+    }
+
+    if (!token) {
       throw new UnauthorizedError('Authentication required');
     }
 
-    const token = authHeader.split(' ')[1];
     try {
       const decoded = await verifyAccessToken(token);
       req.user = { id: decoded.sub };
@@ -26,13 +33,20 @@ export async function authenticate(req, res, next) {
 
 export async function optionalAuth(req, res, next) {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    let token = req.cookies?.accessToken;
+    
+    if (!token) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.split(' ')[1];
+      }
+    }
+
+    if (!token) {
       req.user = null;
       return next();
     }
 
-    const token = authHeader.split(' ')[1];
     try {
       const decoded = await verifyAccessToken(token);
       req.user = { id: decoded.sub };

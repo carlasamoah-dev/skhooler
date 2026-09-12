@@ -112,41 +112,26 @@ class AuthService {
     }
 
     if (tokenRecord.revokedAt) {
-      // Reuse detected, revoke all tokens in family
-      await prisma.refreshToken.updateMany({
-        where: { familyId: tokenRecord.familyId },
-        data: { revokedAt: new Date() },
-      });
-      throw new UnauthorizedError('Session compromised. Please log in again.');
+      throw new UnauthorizedError('Session logged out or revoked. Please log in again.');
     }
 
     if (tokenRecord.expiresAt < new Date()) {
       throw new UnauthorizedError('Token expired');
     }
 
-    // Revoke current
+    // Extend the expiration to 7 days from now (sliding window)
+    // We avoid rotating the refresh token to prevent multi-tab concurrency
+    // issues where one tab revokes the token before another tab uses it.
     await prisma.refreshToken.update({
       where: { id: tokenRecord.id },
-      data: { revokedAt: new Date() },
+      data: { expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
     });
 
-    // Create new tokens with same familyId
     const newAccessToken = signAccessToken(tokenRecord.userId);
-    const newRefreshTokenRaw = generateRefreshToken();
-    const newRefreshTokenHash = hashToken(newRefreshTokenRaw);
-
-    await prisma.refreshToken.create({
-      data: {
-        userId: tokenRecord.userId,
-        tokenHash: newRefreshTokenHash,
-        familyId: tokenRecord.familyId,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-      },
-    });
 
     return {
       accessToken: newAccessToken,
-      refreshToken: newRefreshTokenRaw,
+      refreshToken: refreshToken,
     };
   }
 

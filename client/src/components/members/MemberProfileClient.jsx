@@ -24,15 +24,15 @@ export default function MemberProfileClient({ memberId }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetchMemberProfile(memberId)
+    fetchMemberProfile(slug, memberId)
       .then((m) => { if (!cancelled) setMember(m); })
       .catch((e) => { if (!cancelled) setError(e.message); });
 
     // Show their posts — in prod you'd filter by authorId; here we use all posts as a sample
-    fetchPosts({}).then((r) => { if (!cancelled) setPosts(r.items.filter(p => p.author?.id === memberId).slice(0, 5)); });
+    fetchPosts(slug, {}).then((r) => { if (!cancelled) setPosts(r.items.filter(p => p.author?.id === memberId).slice(0, 5)); });
 
     return () => { cancelled = true; };
-  }, [memberId]);
+  }, [slug, memberId]);
 
   if (error) {
     return (

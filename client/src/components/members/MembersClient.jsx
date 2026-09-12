@@ -55,20 +55,20 @@ export default function MembersClient() {
   useEffect(() => {
     let cancelled = false;
     const role = ["admins", "mods", "members"].includes(tab) ? tab : "all";
-    fetchMembers({ role }).then((r) => !cancelled && setRoster(r));
+    fetchMembers(slug, { role }).then((r) => !cancelled && setRoster(r));
     return () => {
       cancelled = true;
     };
-  }, [tab, reloadToken]);
+  }, [slug, tab, reloadToken]);
 
   useEffect(() => {
     let cancelled = false;
     fetchCourses().then((c) => !cancelled && setCourses(c));
-    if (mayApprove) fetchJoinRequests().then((r) => !cancelled && setRequests(r.items));
+    if (mayApprove) fetchJoinRequests(slug).then((r) => !cancelled && setRequests(r.items));
     return () => {
       cancelled = true;
     };
-  }, [mayApprove, reloadToken]);
+  }, [slug, mayApprove, reloadToken]);
 
   useEffect(() => {
     if (tab !== "map" || geography) return undefined;
@@ -92,8 +92,8 @@ export default function MembersClient() {
   const counts = roster?.counts ?? {};
   const decide = async (requestId, approve) => {
     setRequests((list) => list.filter((r) => r.id !== requestId));
-    if (approve) await approveJoinRequest(requestId);
-    else await declineJoinRequest(requestId);
+    if (approve) await approveJoinRequest(slug, requestId);
+    else await declineJoinRequest(slug, requestId);
     reload();
   };
 

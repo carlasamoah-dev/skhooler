@@ -13,7 +13,7 @@ class TierService {
    * @returns {Promise<Object>}
    */
   async createTier(groupId, { name }) {
-    const existing = await prisma.groupTier.findFirst({
+    const existing = await prisma.memberTier.findFirst({
       where: { groupId, name }
     })
 
@@ -21,14 +21,14 @@ class TierService {
       throw new ConflictError('Tier with this name already exists in the group')
     }
 
-    const maxPositionTier = await prisma.groupTier.findFirst({
+    const maxPositionTier = await prisma.memberTier.findFirst({
       where: { groupId },
       orderBy: { position: 'desc' }
     })
 
     const position = maxPositionTier ? maxPositionTier.position + 1 : 1
 
-    return prisma.groupTier.create({
+    return prisma.memberTier.create({
       data: {
         name,
         position,
@@ -43,7 +43,7 @@ class TierService {
    * @returns {Promise<Array>}
    */
   async getTiers(groupId) {
-    return prisma.groupTier.findMany({
+    return prisma.memberTier.findMany({
       where: { groupId },
       orderBy: { position: 'asc' }
     })
@@ -57,7 +57,7 @@ class TierService {
    * @returns {Promise<Object>}
    */
   async updateTier(groupId, tierId, data) {
-    const existing = await prisma.groupTier.findFirst({
+    const existing = await prisma.memberTier.findFirst({
       where: { id: tierId, groupId }
     })
 
@@ -66,7 +66,7 @@ class TierService {
     }
 
     if (data.name && data.name !== existing.name) {
-      const nameExists = await prisma.groupTier.findFirst({
+      const nameExists = await prisma.memberTier.findFirst({
         where: { groupId, name: data.name }
       })
       if (nameExists) {
@@ -74,7 +74,7 @@ class TierService {
       }
     }
 
-    return prisma.groupTier.update({
+    return prisma.memberTier.update({
       where: { id: tierId },
       data
     })
@@ -86,7 +86,7 @@ class TierService {
    * @param {string} tierId 
    */
   async deleteTier(groupId, tierId) {
-    const existing = await prisma.groupTier.findFirst({
+    const existing = await prisma.memberTier.findFirst({
       where: { id: tierId, groupId }
     })
 
@@ -103,7 +103,7 @@ class TierService {
       throw new BadRequestError('Cannot delete tier with assigned members. Reassign them first.')
     }
 
-    await prisma.groupTier.delete({
+    await prisma.memberTier.delete({
       where: { id: tierId }
     })
   }

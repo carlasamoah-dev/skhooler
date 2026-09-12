@@ -1,6 +1,7 @@
 import express from 'express'
 import helmet from 'helmet'
 import cors from 'cors'
+import cookieParser from 'cookie-parser'
 import { corsOptions } from './middleware/cors.js'
 import { requestLogger } from './middleware/requestLogger.js'
 import { backpressureGuard } from './middleware/backpressure.js'
@@ -31,6 +32,7 @@ app.use(cors(corsOptions))
 // 3. Body parser with size limit
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+app.use(cookieParser())
 
 // 4. Request logging
 app.use(requestLogger)

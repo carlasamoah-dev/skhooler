@@ -72,7 +72,12 @@ class GroupService {
           },
           orderBy: { position: 'asc' }
         },
-        memberTiers: true,
+        memberTiers: {
+          include: {
+            _count: { select: { members: true } }
+          },
+          orderBy: { position: 'asc' }
+        },
         externalLinks: true,
         _count: {
           select: { members: true }

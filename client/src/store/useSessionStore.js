@@ -18,9 +18,9 @@ export const useSessionStore = create((set) => ({
    * with the backend. Sets the user if valid, otherwise goes anonymous.
    */
   async bootstrap() {
-    // Skip if no token at all — go straight to anonymous
-    const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
-    if (!token) {
+    // Skip if no token marker at all — go straight to anonymous
+    const isAuthenticated = typeof window !== "undefined" ? localStorage.getItem("isAuthenticated") : null;
+    if (!isAuthenticated) {
       set({ user: null, communities: [], status: "anonymous" });
       return;
     }
@@ -31,7 +31,8 @@ export const useSessionStore = create((set) => ({
       set({ user, communities, status: user ? "authenticated" : "anonymous" });
     } catch {
       // Token expired or invalid — clear it
-      localStorage.removeItem("accessToken");
+      localStorage.removeItem("isAuthenticated");
+      localStorage.removeItem("accessToken"); // clear old ones just in case
       localStorage.removeItem("refreshToken");
       set({ user: null, communities: [], status: "anonymous" });
     }
