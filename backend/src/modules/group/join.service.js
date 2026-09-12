@@ -7,6 +7,7 @@ import { prisma } from '../../config/database.js'
 import { logger } from '../../utils/logger.js'
 import { BadRequestError, NotFoundError, ConflictError, ForbiddenError } from '../../utils/errors.js'
 import { decodeCursor, encodeCursor, buildPaginationMeta } from '../../utils/pagination.js'
+import { emailQueue } from '../../jobs/queue.js'
 
 class JoinService {
   /**
@@ -59,13 +60,15 @@ class JoinService {
     }
 
     // Check membership questions
-    const requiredQuestions = group.membershipQuestions.filter(q => q.isRequired)
-    const requiredQuestionIds = requiredQuestions.map(q => q.id)
-    const providedQuestionIds = answers.map(a => a.questionId)
+    if (group.requireJoinQuestions) {
+      const requiredQuestions = group.membershipQuestions.filter(q => q.isRequired)
+      const requiredQuestionIds = requiredQuestions.map(q => q.id)
+      const providedQuestionIds = answers.map(a => a.questionId)
 
-    const missing = requiredQuestionIds.filter(id => !providedQuestionIds.includes(id))
-    if (missing.length > 0) {
-      throw new BadRequestError('Missing required membership questions')
+      const missing = requiredQuestionIds.filter(id => !providedQuestionIds.includes(id))
+      if (missing.length > 0) {
+        throw new BadRequestError('Missing required membership questions')
+      }
     }
 
     if (group.joinApproval === 'AUTOMATIC') {
@@ -228,6 +231,36 @@ class JoinService {
     })
 
     await this._logModeration(groupId, reviewerId, 'REQUEST_APPROVED', 'JOIN_REQUEST', requestId)
+
+    // Send welcome email if the group has an auto welcome message configured
+    try {
+      const [group, user] = await Promise.all([
+        prisma.group.findUnique({
+          where: { id: groupId },
+          select: { name: true, slug: true, autoWelcomeMessage: true }
+        }),
+        prisma.user.findUnique({
+          where: { id: request.userId },
+          select: { email: true, firstName: true }
+        })
+      ])
+
+      if (group && user && group.autoWelcomeMessage) {
+        await emailQueue.add('sendEmail', {
+          type: 'join-approved',
+          to: user.email,
+          data: {
+            firstName: user.firstName,
+            groupName: group.name,
+            groupSlug: group.slug,
+            welcomeMessage: group.autoWelcomeMessage
+          }
+        })
+      }
+    } catch (emailErr) {
+      // Non-fatal: log but don't fail the approval
+      logger.warn({ err: emailErr, requestId }, 'Failed to queue welcome email after approval')
+    }
 
     return updatedRequest
   }

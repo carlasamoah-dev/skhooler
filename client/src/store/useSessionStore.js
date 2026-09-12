@@ -43,6 +43,9 @@ export const useSessionStore = create((set) => ({
       await auth.logout();
     } finally {
       set({ user: null, communities: [], status: "anonymous" });
+      if (typeof window !== "undefined") {
+        window.location.href = "/discover";
+      }
     }
   },
 }));

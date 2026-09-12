@@ -121,7 +121,7 @@ class InviteService {
     })
 
     if (!invite || !invite.isActive) {
-      throw new NotFoundError('Invalid invite link')
+      throw new BadRequestError('Invalid invite link')
     }
 
     if (invite.expiresAt && invite.expiresAt < new Date()) {
@@ -136,6 +136,29 @@ class InviteService {
       where: { id: invite.id },
       data: { useCount: { increment: 1 } }
     })
+
+    return invite
+  }
+
+  /**
+   * Read-only check: validates an invite code without incrementing the use count.
+   * Used by the public /validate endpoint so unauthenticated clients can check
+   * validity before being asked to log in.
+   * @param {string} code
+   */
+  async peekInvite(code) {
+    const invite = await prisma.groupInvite.findUnique({
+      where: { code },
+      include: {
+        group: {
+          select: { id: true, name: true, slug: true, iconUrl: true, visibility: true }
+        }
+      }
+    })
+
+    if (!invite || !invite.isActive) return null
+    if (invite.expiresAt && invite.expiresAt < new Date()) return null
+    if (invite.maxUses && invite.useCount >= invite.maxUses) return null
 
     return invite
   }
@@ -190,39 +213,47 @@ class InviteService {
   async inviteByEmail(groupId, emails, invitedBy) {
     let sent = 0
     const alreadyMembers = []
-    const notFound = []
 
-    const group = await prisma.group.findUnique({ where: { id: groupId } })
+    const [group, inviter] = await Promise.all([
+      prisma.group.findUnique({ where: { id: groupId }, select: { name: true, slug: true } }),
+      prisma.user.findUnique({ where: { id: invitedBy }, select: { firstName: true, lastName: true } })
+    ])
+
+    if (!group) throw new NotFoundError('Group not found')
+
+    const inviterName = inviter ? `${inviter.firstName} ${inviter.lastName}` : null
 
     for (const email of emails) {
-      const user = await prisma.user.findUnique({ where: { email } })
-      if (!user) {
-        notFound.push(email)
-        continue
+      // Check if the email belongs to an existing member — skip if so
+      const existingUser = await prisma.user.findUnique({ where: { email } })
+      if (existingUser) {
+        const existingMember = await prisma.groupMember.findUnique({
+          where: { groupId_userId: { groupId, userId: existingUser.id } }
+        })
+        if (existingMember) {
+          alreadyMembers.push(email)
+          continue
+        }
       }
 
-      const existingMember = await prisma.groupMember.findUnique({
-        where: { groupId_userId: { groupId: group.id, userId: user.id } }
-      })
-
-      if (existingMember) {
-        alreadyMembers.push(email)
-        continue
-      }
-
-      // Generate a single-use invite
+      // Generate a single-use invite for this email
       const invite = await this.createInvite(groupId, invitedBy, { maxUses: 1, expiresInDays: 7 })
 
-      await emailQueue.add('sendInvite', {
+      // Queue the email (works for both registered and unregistered users)
+      await emailQueue.add('sendEmail', {
+        type: 'group-invite',
         to: email,
-        groupName: group.name,
-        inviteUrl: invite.url
+        data: {
+          groupName: group.name,
+          inviteUrl: invite.url,
+          inviterName
+        }
       })
 
       sent++
     }
 
-    return { sent, alreadyMembers, notFound }
+    return { sent, alreadyMembers }
   }
 }
 

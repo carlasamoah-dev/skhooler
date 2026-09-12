@@ -334,39 +334,9 @@ export const members = {
   counts: { all: 4182, admins: 4, moderators: 9, members: 4169, pendingRequests: 12 },
 };
 
-export const joinRequests = {
-  items: [
-    {
-      id: "50000000-0001-4000-8000-000000000001",
-      status: "PENDING",
-      user: { firstName: "Kofi", lastName: "Mensah", email: "kofi.mensah@example.com", avatarUrl: null, country: "Ghana", countryCode: "GH" },
-      createdAt: "2026-09-05T17:00:00.000Z",
-      answers: [
-        { questionId: "44b2c110-0001-4000-8000-000000000001", question: "What kind of role are you looking for?", answer: "Customer support, ideally EMEA hours. I've done two years in a call centre and want out of the building." },
-      ],
-    },
-    {
-      id: "50000000-0002-4000-8000-000000000002",
-      status: "PENDING",
-      user: { firstName: "Lena", lastName: "Ruiz", email: "lena.ruiz@example.com", avatarUrl: null, country: "Spain", countryCode: "ES" },
-      createdAt: "2026-09-05T13:00:00.000Z",
-      answers: [
-        { questionId: "44b2c110-0001-4000-8000-000000000001", question: "What kind of role are you looking for?", answer: "Data analyst. Finishing a bootcamp in October, happy to take contract work first." },
-      ],
-    },
-    {
-      id: "50000000-0003-4000-8000-000000000003",
-      status: "PENDING",
-      user: { firstName: "Sam", lastName: "Okafor", email: "s.okafor@example.com", avatarUrl: null, country: "Nigeria", countryCode: "NG" },
-      createdAt: "2026-09-04T09:00:00.000Z",
-      answers: [
-        { questionId: "44b2c110-0001-4000-8000-000000000001", question: "What kind of role are you looking for?", answer: "Executive assistant — I support two founders already but both roles are onsite." },
-      ],
-    },
-  ],
-  nextCursor: null,
-  total: 12,
-};
+/* joinRequests — removed. All join request data now comes from the real backend
+   via GET /groups/:slug/requests. */
+
 
 /* country distribution for the members map — country names must match
    world-atlas `properties.name` exactly ("United States of America"). */
@@ -462,12 +432,6 @@ export const analyticsSources = [
 
 export const referralStats = { payoutDue: 412, referrerCount: 19, payoutDay: "the 1st" };
 
-/* -------------------------------- invites -------------------------------- */
+/* invites — removed. Share links and email invites are now served by the real backend
+   via GET /groups/:slug/share-link and POST /groups/:slug/invites/email. */
 
-export const invites = {
-  shareLink: "https://skhooler.com/remote-jobs-hq?ref=tee",
-  items: [
-    { id: "70000000-0001-4000-8000-000000000001", code: "RJHQ-8F2K", useCount: 11, maxUses: 25, expiresAt: "2026-09-19T00:00:00.000Z" },
-    { id: "70000000-0002-4000-8000-000000000002", code: "RJHQ-QT4M", useCount: 3, maxUses: 10, expiresAt: "2026-10-02T00:00:00.000Z" },
-  ],
-};

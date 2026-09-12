@@ -84,6 +84,9 @@ class GroupService {
           orderBy: { position: 'asc' }
         },
         externalLinks: true,
+        membershipQuestions: {
+          orderBy: { position: 'asc' }
+        },
         _count: {
           select: { members: true }
         }
@@ -120,6 +123,8 @@ class GroupService {
         name: true,
         slug: true,
         description: true,
+        aboutContent: true,
+        galleryImages: true,
         iconUrl: true,
         coverUrl: true,
         visibility: true,
@@ -128,10 +133,14 @@ class GroupService {
         billingInterval: true,
         memberCount: true,
         owner: {
-          select: { id: true, firstName: true, lastName: true, avatarUrl: true }
+          select: { id: true, firstName: true, lastName: true, avatarUrl: true, username: true }
         },
         categories: {
           select: { name: true, slug: true }
+        },
+        requireJoinQuestions: true,
+        membershipQuestions: {
+          select: { id: true, question: true, isRequired: true, position: true }
         }
       }
     })
@@ -145,6 +154,8 @@ class GroupService {
         description: group.description,
         iconUrl: group.iconUrl,
         visibility: group.visibility,
+        requireJoinQuestions: group.requireJoinQuestions,
+        membershipQuestions: group.membershipQuestions,
         isLimited: true
       }
     }

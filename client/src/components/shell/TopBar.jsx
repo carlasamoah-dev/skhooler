@@ -6,7 +6,10 @@ import { Bell, LogOut } from "lucide-react";
 import { Avatar, IconButton } from "@/components/ui";
 import SearchField from "./SearchField";
 
+import { useAuthModalStore } from "@/store/useAuthModalStore";
+
 export default function TopBar({ group, user, unreadCount = 0, searchValue, onSearch, onToggleNotifications, onSignOut }) {
+  const openModal = useAuthModalStore((state) => state.openModal);
   const signOut = onSignOut ?? (() => {});
   const groupName = group?.name ?? "";
   const userName = user ? `${user.firstName} ${user.lastName}` : "";
@@ -38,16 +41,27 @@ export default function TopBar({ group, user, unreadCount = 0, searchValue, onSe
         />
 
         <div className="ml-auto flex items-center gap-3">
-          <IconButton
-            icon={Bell}
-            label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
-            badge={unreadCount}
-            onClick={onToggleNotifications}
-          />
-          <Link href="/account" className="flex shrink-0">
-            <Avatar name={userName} src={user?.avatarUrl ?? undefined} size={44} />
-          </Link>
-          <IconButton icon={LogOut} label="Log out" variant="plain" size={36} onClick={signOut} />
+          {user ? (
+            <>
+              <IconButton
+                icon={Bell}
+                label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+                badge={unreadCount}
+                onClick={onToggleNotifications}
+              />
+              <Link href="/account" className="flex shrink-0">
+                <Avatar name={userName} src={user.avatarUrl} size={44} />
+              </Link>
+              <IconButton icon={LogOut} label="Log out" variant="plain" size={36} onClick={signOut} />
+            </>
+          ) : (
+            <button 
+              onClick={() => openModal('login')} 
+              className="btn btn-primary text-[13px] px-4 py-2"
+            >
+              Log in
+            </button>
+          )}
         </div>
       </div>
     </header>

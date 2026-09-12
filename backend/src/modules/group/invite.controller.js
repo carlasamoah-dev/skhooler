@@ -37,6 +37,33 @@ export async function getInvites(req, res, next) {
 }
 
 /**
+ * Public validate — returns group info for an invite code (no auth required).
+ * Used by the client to pre-check validity before showing the login modal.
+ */
+export async function validateInvite(req, res, next) {
+  try {
+    const { code } = req.params
+
+    const invite = await inviteService.peekInvite(code)
+    if (!invite) {
+      return res.status(404).json({ error: { message: 'Invalid or expired invite link' } })
+    }
+
+    return sendSuccess(res, {
+      group: {
+        id: invite.group.id,
+        name: invite.group.name,
+        slug: invite.group.slug,
+        iconUrl: invite.group.iconUrl,
+        visibility: invite.group.visibility,
+      }
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
  * Get or create default share link
  */
 export async function getShareLink(req, res, next) {

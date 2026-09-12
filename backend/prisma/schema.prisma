@@ -246,6 +246,7 @@ model Group {
   aboutContent       String?           @map("about_content") @db.Text
   customUrl          String?           @unique @map("custom_url") @db.VarChar(100)
   joinApproval       JoinApproval      @default(AUTOMATIC) @map("join_approval")
+  requireJoinQuestions Boolean         @default(false) @map("require_join_questions")
   autoWelcomeMessage String?           @map("auto_welcome_message") @db.Text
   ownerId            String            @map("owner_id") @db.Uuid
   memberCount        Int               @default(0) @map("member_count")

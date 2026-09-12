@@ -14,7 +14,6 @@ let categories = structuredClone(mocks.categories);
 let tiers = structuredClone(mocks.tiers);
 let joinQuestions = structuredClone(mocks.joinQuestions);
 let preferences = structuredClone(mocks.notificationPreferences);
-const invites = structuredClone(mocks.invites);
 
 
 /**
@@ -148,15 +147,17 @@ function previewRole() {
  * mutable records the settings panels write, so a rename or a reorder there
  * shows up in the shell and the feed without a reload.
  */
-export function fetchGroupBundle(slug) {
-  const role = previewRole();
-  return resolve({
-    group: { ...group, slug },
-    membership: role ? { ...mocks.membership, role } : mocks.membership,
-    categories,
-    tiers,
-    user: mocks.session.user,
-  });
+/**
+ * Everything the landing page needs before it can render a group.
+ */
+export async function fetchGroupBundle(slug) {
+  try {
+    const group = await authFetch(`/groups/${slug}/landing`, {}, false);
+    return { group };
+  } catch (err) {
+    if (err.status === 404) return null;
+    throw err;
+  }
 }
 
 export function fetchNotifications() {
@@ -165,9 +166,9 @@ export function fetchNotifications() {
 
 /* ---------------------------------- feed --------------------------------- */
 
-// Keep mock join requests + events (not yet migrated)
-let joinRequests = structuredClone(mocks.joinRequests.items);
+// Keep mock events (not yet migrated to real backend)
 const events = structuredClone(mocks.events.items);
+
 
 /**
  * Fetch paginated posts from the real backend.
@@ -592,7 +593,10 @@ export function cancelEvent(eventId) {
 /* -------------------------------- settings -------------------------------- */
 
 export async function fetchSettings(slug) {
-  const g = await authFetch(`/groups/${slug}`);
+  const [g, inviteData] = await Promise.all([
+    authFetch(`/groups/${slug}`),
+    authFetch(`/groups/${slug}/share-link`).catch(() => null),
+  ]);
   
   return {
     group: {
@@ -608,6 +612,7 @@ export async function fetchSettings(slug) {
       billingInterval: g.billingInterval,
       trialDays: g.trialDays,
       joinApproval: g.joinApproval,
+      requireJoinQuestions: g.requireJoinQuestions,
       autoWelcomeMessage: g.autoWelcomeMessage ?? "",
       tags: g.tags ?? [],
     },
@@ -617,11 +622,14 @@ export async function fetchSettings(slug) {
       memberCount: t._count?.members || 0,
       lockedContent: "no locked content"
     })) : [],
-    questions: joinQuestions, // Not yet migrated
+    questions: Array.isArray(g.membershipQuestions) ? g.membershipQuestions : [],
     preferences: preferences, // Not yet migrated
-    invites: invites,         // Not yet migrated
+    invites: {
+      shareLink: inviteData?.url ?? null,
+    },
   };
 }
+
 
 export async function updateGroup(slug, patch) {
   const data = await authFetch(`/groups/${slug}`, {
@@ -704,10 +712,20 @@ export async function deleteTier(slug, tierId) {
 
 /* join questions — at most three */
 
-export function saveQuestions(questions) {
+export async function saveQuestions(slug, questions) {
   if (questions.length > 3) return Promise.reject(new Error("Three questions is the maximum."));
-  joinQuestions = questions.map((q, i) => ({ ...q, id: q.id ?? `local-${i}`, position: i }));
-  return resolve(joinQuestions);
+  const data = await authFetch(`/groups/${slug}/questions`, {
+    method: "PUT",
+    body: JSON.stringify({ questions }),
+  });
+  return data;
+}
+
+export async function joinGroup(slug, payload = { answers: [] }) {
+  return authFetch(`/groups/${slug}/join`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
 }
 
 /* notification preferences */
@@ -717,25 +735,37 @@ export function savePreferences(next) {
   return resolve(preferences);
 }
 
-/* invites */
+/* invites — real backend */
 
-export function createInvite({ maxUses, expiresInDays }) {
-  const code = `RJHQ-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-  const expiresAt = new Date(Date.now() + Number(expiresInDays) * 86_400_000).toISOString();
-  const invite = { id: `local-${Date.now()}`, code, useCount: 0, maxUses: Number(maxUses), expiresAt };
-  invites.items = [invite, ...invites.items];
-  return resolve(invite);
+export async function createInvite(slug, { maxUses, expiresInDays }) {
+  return authFetch(`/groups/${slug}/invites`, {
+    method: "POST",
+    body: JSON.stringify({
+      maxUses: maxUses ? Number(maxUses) : null,
+      expiresInDays: expiresInDays ? Number(expiresInDays) : null,
+    }),
+  });
 }
 
-export function revokeInvite(inviteId) {
-  invites.items = invites.items.filter((i) => i.id !== inviteId);
-  return resolve(invites.items);
+export async function revokeInvite(slug, inviteId) {
+  return authFetch(`/groups/${slug}/invites/${inviteId}`, {
+    method: "DELETE",
+  });
 }
 
-export function emailInvites(emails) {
-  if (emails.length > 50) return Promise.reject(new Error("Fifty addresses at a time is the maximum."));
-  return resolve({ sent: emails.length });
+export async function emailInvites(slug, emails) {
+  if (!emails || emails.length === 0) return { sent: 0 };
+  if (emails.length > 50)
+    return Promise.reject(
+      new Error("Fifty addresses at a time is the maximum.")
+    );
+  const result = await authFetch(`/groups/${slug}/invites/email`, {
+    method: "POST",
+    body: JSON.stringify({ emails }),
+  });
+  return result;
 }
+
 
 /* -------------------------------- members --------------------------------- */
 

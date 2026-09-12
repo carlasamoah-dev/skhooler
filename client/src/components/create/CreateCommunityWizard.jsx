@@ -132,12 +132,55 @@ function ImageDropZone({ label, preview, onFile, hint }) {
 }
 
 function StepBranding() {
-  const { iconPreview, coverPreview, setIcon, setCover } = useCreateStore();
+  const { 
+    iconPreview, coverPreview, setIcon, setCover,
+    galleryPreviews, addGalleryFiles, removeGalleryFile,
+    videoUrls, set
+  } = useCreateStore();
+  
+  const galleryRef = useRef(null);
+
   return (
     <div className="flex flex-col gap-6">
       <p className="text-sm text-sand-600">These images help members recognise your community instantly. You can always change them later.</p>
       <ImageDropZone label="Community icon" preview={iconPreview} onFile={setIcon} hint="Square image, at least 256×256px" />
       <ImageDropZone label="Cover banner" preview={coverPreview} onFile={setCover} hint="Recommended: 1600×400px" />
+      
+      <div>
+        <label className="field-label mb-1.5">Gallery Media (Images / Videos)</label>
+        <div className="flex flex-wrap gap-3 mb-3">
+          {galleryPreviews.map((preview, idx) => (
+            <div key={idx} className="relative w-24 h-24 rounded-xl border border-divider overflow-hidden group">
+              <img src={preview} alt="" className="w-full h-full object-cover" />
+              <button 
+                onClick={() => removeGalleryFile(idx)}
+                className="absolute top-1 right-1 bg-black/50 text-white w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                &times;
+              </button>
+            </div>
+          ))}
+          <div
+            onClick={() => galleryRef.current?.click()}
+            className="w-24 h-24 border-2 border-dashed border-divider rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-sand-400 bg-sand-100 transition-all text-sand-500 hover:text-sand-700"
+          >
+            <input type="file" accept="image/*,video/*" multiple className="hidden" ref={galleryRef} onChange={e => addGalleryFiles(e.target.files)} />
+            <Upload className="w-6 h-6 mb-1" />
+            <span className="text-xs">Add</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label className="field-label mb-1.5">Video URLs</label>
+        <textarea
+          value={videoUrls}
+          onChange={e => set({ videoUrls: e.target.value })}
+          placeholder="Paste YouTube or Vimeo URLs (one per line)..."
+          rows={3}
+          className="input"
+        />
+      </div>
     </div>
   );
 }

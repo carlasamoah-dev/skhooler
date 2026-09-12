@@ -3,12 +3,22 @@
 import { useState } from "react";
 
 import { saveQuestions } from "@/lib/api";
-import { Button, Checkbox, Input } from "@/components/ui";
+import { Button, Checkbox, Input, EmptyState } from "@/components/ui";
+import { Lock } from "lucide-react";
 import Panel from "./Panel";
 
 const MAX = 3;
 
-export default function JoinQuestionsPanel({ questions, onSaved }) {
+export default function JoinQuestionsPanel({ slug, group, questions, onSaved }) {
+  if (!group?.requireJoinQuestions) {
+    return (
+      <EmptyState
+        icon={Lock}
+        title="Join Questions are turned off"
+        body="This setting has been turned off. Please go to the General tab to turn it on if you want to require users to answer questions when joining."
+      />
+    );
+  }
   // Always render three slots; empty ones are dropped on save.
   const [rows, setRows] = useState(() =>
     Array.from({ length: MAX }, (_, i) => questions[i] ?? { question: "", isRequired: false }),
@@ -31,7 +41,7 @@ export default function JoinQuestionsPanel({ questions, onSaved }) {
             setBusy(true);
             try {
               const kept = rows.filter((r) => r.question.trim());
-              await saveQuestions(kept);
+              await saveQuestions(slug, kept);
               await onSaved?.();
               setSaved(true);
             } finally {

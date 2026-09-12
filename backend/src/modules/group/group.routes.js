@@ -49,6 +49,7 @@ router.delete('/:slug/invites/:inviteId', authenticate, loadGroup, requireAdmin,
 router.post('/:slug/invites/email', authenticate, loadGroup, requireAdmin, validateBody(schemas.inviteByEmailSchema), inviteController.inviteByEmail)
 
 // ──── Join via invite code (no group context needed) ────
+router.get('/invite/:code/validate', inviteController.validateInvite)
 router.post('/join/:code', authenticate, inviteController.joinViaInvite)
 
 // ──── Categories ────

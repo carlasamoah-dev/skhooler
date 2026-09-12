@@ -9,6 +9,7 @@ export const createGroupSchema = z.object({
   // Branding (optional — set during wizard)
   iconUrl: z.string().url().nullable().optional(),
   coverUrl: z.string().url().nullable().optional(),
+  galleryImages: z.array(z.string().url()).max(10).optional().default([]),
   // Pricing (optional — defaults to FREE)
   pricingModel: z.enum(['FREE', 'PAID']).default('FREE'),
   price: z.number().positive().max(9999.99).nullable().optional(),
@@ -29,8 +30,10 @@ export const updateGroupSchema = z.object({
   joinApproval: z.enum(['AUTOMATIC', 'MANUAL']),
   autoWelcomeMessage: z.string().trim().max(1000).nullable(),
   tags: z.array(z.string().trim().min(1).max(50)).max(10).nullable(),
+  requireJoinQuestions: z.boolean().optional(),
   iconUrl: z.string().url().nullable().optional(),
   coverUrl: z.string().url().nullable().optional(),
+  galleryImages: z.array(z.string().url()).max(10).nullable().optional(),
   slug: z.string().trim().min(2).max(100).regex(/^[a-z0-9-]+$/i, 'Slugs can only contain letters, numbers, and hyphens').optional(),
 }).partial()
 

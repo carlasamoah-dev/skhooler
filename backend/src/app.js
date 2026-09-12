@@ -23,6 +23,9 @@ import userRoutes from './modules/user/user.routes.js'
 
 const app = express()
 
+// Trust proxy to get correct IP behind Render's load balancer
+app.set('trust proxy', 1)
+
 // 1. Security headers
 app.use(helmet())
 

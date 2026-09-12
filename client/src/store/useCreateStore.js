@@ -16,6 +16,9 @@ export const useCreateStore = create((set, get) => ({
   iconPreview: null,
   coverFile: null,
   coverPreview: null,
+  galleryFiles: [],
+  galleryPreviews: [],
+  videoUrls: "",
 
   // Step 3 — Pricing
   pricingModel: "FREE",
@@ -50,10 +53,29 @@ export const useCreateStore = create((set, get) => ({
     set({ coverFile: file, coverPreview: url });
   },
 
+  addGalleryFiles(files) {
+    const newFiles = Array.from(files);
+    const newPreviews = newFiles.map(f => URL.createObjectURL(f));
+    set((state) => ({
+      galleryFiles: [...state.galleryFiles, ...newFiles],
+      galleryPreviews: [...state.galleryPreviews, ...newPreviews],
+    }));
+  },
+
+  removeGalleryFile(index) {
+    set((state) => {
+      const newFiles = [...state.galleryFiles];
+      const newPreviews = [...state.galleryPreviews];
+      newFiles.splice(index, 1);
+      newPreviews.splice(index, 1);
+      return { galleryFiles: newFiles, galleryPreviews: newPreviews };
+    });
+  },
+
   async launch() {
     const {
       name, description, category, visibility,
-      iconFile, coverFile,
+      iconFile, coverFile, galleryFiles, videoUrls,
       pricingModel, price, billingInterval, trialDays,
     } = get();
 
@@ -61,10 +83,18 @@ export const useCreateStore = create((set, get) => ({
 
     try {
       // 1. Upload images in parallel (returns null if no file)
-      const [iconUrl, coverUrl] = await Promise.all([
+      const [iconUrl, coverUrl, ...uploadedGalleryUrls] = await Promise.all([
         uploadImage(iconFile, "community-icons"),
         uploadImage(coverFile, "community-covers"),
+        ...galleryFiles.map(f => uploadImage(f, "community-covers")), // using covers bucket for now
       ]);
+
+      const parsedVideoUrls = videoUrls
+        .split(/[\n,]+/)
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+
+      const galleryImages = [...uploadedGalleryUrls.filter(Boolean), ...parsedVideoUrls];
 
       // 2. Build payload — map frontend category to backend tags array
       const payload = {
@@ -74,6 +104,7 @@ export const useCreateStore = create((set, get) => ({
         tags: category ? [category] : [],
         iconUrl,
         coverUrl,
+        galleryImages,
         pricingModel,
         ...(pricingModel === "PAID" && {
           price: Number(price),
@@ -108,7 +139,8 @@ export const useCreateStore = create((set, get) => ({
     set({
       step: 1, name: "", description: "", category: "education",
       visibility: "PUBLIC", iconFile: null, iconPreview: null,
-      coverFile: null, coverPreview: null, pricingModel: "FREE",
+      coverFile: null, coverPreview: null, galleryFiles: [], galleryPreviews: [], videoUrls: "",
+      pricingModel: "FREE",
       price: "", billingInterval: "MONTHLY", trialDays: "",
       slug: null, status: "idle", error: null,
     });

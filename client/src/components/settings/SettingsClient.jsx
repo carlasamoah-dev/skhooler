@@ -100,7 +100,7 @@ export default function SettingsClient({ tab }) {
             onCategories={reload}
           />
         ) : active === "questions" ? (
-          <JoinQuestionsPanel questions={data.questions} onSaved={reload} />
+          <JoinQuestionsPanel slug={slug} group={data.group} questions={data.questions} onSaved={reload} />
         ) : active === "notifications" ? (
           <NotificationsPanel preferences={data.preferences} onSaved={reload} />
         ) : (

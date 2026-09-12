@@ -14,7 +14,7 @@ class QuestionService {
    */
   async setQuestions(groupId, { questions }) {
     return prisma.$transaction(async (tx) => {
-      await tx.groupQuestion.deleteMany({
+      await tx.membershipQuestion.deleteMany({
         where: { groupId }
       })
 
@@ -29,11 +29,11 @@ class QuestionService {
         position: index + 1
       }))
 
-      await tx.groupQuestion.createMany({
+      await tx.membershipQuestion.createMany({
         data: createData
       })
 
-      return tx.groupQuestion.findMany({
+      return tx.membershipQuestion.findMany({
         where: { groupId },
         orderBy: { position: 'asc' }
       })
@@ -46,7 +46,7 @@ class QuestionService {
    * @returns {Promise<Array>}
    */
   async getQuestions(groupId) {
-    return prisma.groupQuestion.findMany({
+    return prisma.membershipQuestion.findMany({
       where: { groupId },
       orderBy: { position: 'asc' }
     })

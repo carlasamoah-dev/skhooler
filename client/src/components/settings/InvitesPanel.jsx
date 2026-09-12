@@ -1,9 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Check, Copy, Mail, Upload } from "lucide-react";
+import { Check, Copy, Mail, Upload, Link } from "lucide-react";
 
 import { emailInvites } from "@/lib/api";
+import { useGroupStore } from "@/store/useGroupStore";
 import { Button, Input, Textarea } from "@/components/ui";
 import Panel from "./Panel";
 
@@ -37,12 +38,16 @@ function parseEmailsFromCsv(text) {
 }
 
 export default function InvitesPanel({ invites, onInvites }) {
+  const slug = useGroupStore((s) => s.slug);
+
   const [copied, setCopied] = useState(false);
   const [emails, setEmails] = useState("");
   const [emailStatus, setEmailStatus] = useState(null);
   const [busy, setBusy] = useState(false);
   const [csvName, setCsvName] = useState(null);
   const csvRef = useRef(null);
+
+  const shareLink = invites?.shareLink;
 
   const addresses = emails
     .split(/[\s,;]+/)
@@ -65,7 +70,9 @@ export default function InvitesPanel({ invites, onInvites }) {
       const existing = new Set(addresses);
       const merged = [...existing, ...parsed];
       setEmails(merged.slice(0, MAX_EMAILS).join("\n"));
-      setEmailStatus(`${parsed.length} address${parsed.length === 1 ? "" : "es"} imported from ${file.name}.`);
+      setEmailStatus(
+        `${parsed.length} address${parsed.length === 1 ? "" : "es"} imported from ${file.name}.`
+      );
     };
     reader.readAsText(file);
     // Reset file input so the same file can be re-selected.
@@ -73,11 +80,18 @@ export default function InvitesPanel({ invites, onInvites }) {
   };
 
   const handleSend = async () => {
+    if (!slug) return;
     setBusy(true);
     setEmailStatus(null);
     try {
-      const { sent } = await emailInvites(addresses);
-      setEmailStatus(`✓ Sent ${sent} invite${sent === 1 ? "" : "s"} successfully.`);
+      const result = await emailInvites(slug, addresses);
+      const sent = result?.sent ?? 0;
+      const alreadyCount = result?.alreadyMembers?.length ?? 0;
+      let msg = `✓ Sent ${sent} invite${sent === 1 ? "" : "s"} successfully.`;
+      if (alreadyCount > 0) {
+        msg += ` (${alreadyCount} already member${alreadyCount === 1 ? "" : "s"}, skipped)`;
+      }
+      setEmailStatus(msg);
       setEmails("");
       setCsvName(null);
     } catch (error) {
@@ -92,22 +106,30 @@ export default function InvitesPanel({ invites, onInvites }) {
       {/* Share link */}
       <Panel title="Share link">
         <p className="text-ui text-sand-700 mb-3">
-          Anyone with this link can request to join. Share it on social media or wherever your audience is.
+          Anyone with this link can request to join. Share it on social media or
+          wherever your audience is.
         </p>
-        <div className="bg-sand-100 rounded-inner px-5 py-4 flex flex-wrap items-center gap-3">
-          <code className="text-ui break-all text-ink">{invites.shareLink}</code>
-          <Button
-            variant="secondary"
-            className="ml-auto"
-            icon={copied ? Check : Copy}
-            onClick={async () => {
-              setCopied(await copyText(invites.shareLink));
-              setTimeout(() => setCopied(false), 2500);
-            }}
-          >
-            {copied ? "Copied!" : "Copy link"}
-          </Button>
-        </div>
+        {shareLink ? (
+          <div className="bg-sand-100 rounded-inner px-5 py-4 flex flex-wrap items-center gap-3">
+            <code className="text-ui break-all text-ink">{shareLink}</code>
+            <Button
+              variant="secondary"
+              className="ml-auto"
+              icon={copied ? Check : Copy}
+              onClick={async () => {
+                setCopied(await copyText(shareLink));
+                setTimeout(() => setCopied(false), 2500);
+              }}
+            >
+              {copied ? "Copied!" : "Copy link"}
+            </Button>
+          </div>
+        ) : (
+          <div className="bg-sand-100 rounded-inner px-5 py-4 flex items-center gap-3 text-sand-500 text-ui">
+            <Link className="w-4 h-4 shrink-0" />
+            Loading share link…
+          </div>
+        )}
       </Panel>
 
       {/* Invite by email */}
@@ -126,8 +148,10 @@ export default function InvitesPanel({ invites, onInvites }) {
       >
         <div className="flex flex-col gap-4">
           <p className="text-ui text-sand-700">
-            Type or paste email addresses (separated by commas, spaces, or new lines), or import a CSV file.
-            Maximum {MAX_EMAILS} at a time.
+            Type or paste email addresses (separated by commas, spaces, or new
+            lines), or import a CSV file. Maximum {MAX_EMAILS} at a time.
+            Invites are sent to all addresses — recipients without an account
+            will be asked to create one first.
           </p>
 
           <Textarea
@@ -136,7 +160,11 @@ export default function InvitesPanel({ invites, onInvites }) {
             placeholder={"alice@example.com\nbob@example.com"}
             value={emails}
             onChange={(e) => setEmails(e.target.value)}
-            error={tooMany ? `That's ${addresses.length} addresses — the maximum is ${MAX_EMAILS} at a time.` : undefined}
+            error={
+              tooMany
+                ? `That's ${addresses.length} addresses — the maximum is ${MAX_EMAILS} at a time.`
+                : undefined
+            }
           />
 
           {/* CSV import */}
